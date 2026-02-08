@@ -15,7 +15,7 @@ echo "🚀 jcapy Release Protocol"
 echo "================================"
 
 cd "$(dirname "$0")/.."
-REPO_NAME="JCapy"
+REPO_NAME="homebrew-JCapy"
 GITHUB_USER="ponli550"
 
 # ==========================================
