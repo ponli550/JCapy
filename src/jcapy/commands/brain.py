@@ -155,6 +155,11 @@ def select_persona():
         if char_code in ['c', 'C']:
              open_brain_vscode()
              continue # Refresh menu
+        elif char_code in ['s', 'S']:
+             from jcapy.commands.sync import sync_all_personas
+             sync_all_personas()
+             input("Press Enter to continue...")
+             continue # Refresh menu
         elif char_code in ['p', 'P']:
              push_all_personas()
              input("Press Enter to continue...")
