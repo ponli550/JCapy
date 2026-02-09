@@ -5,6 +5,19 @@ This document illustrates the complete user journey when building a project usin
 
 ---
 
+## Terminology Reference
+
+| JCapy Term | Industry Standard | Description |
+|------------|-------------------|-------------|
+| Framework | Template/Scaffold | Reusable code pattern with executable steps |
+| Library | Knowledge Base | Collection of frameworks organized by domain |
+| Persona | Workspace/Profile | Isolated environment with custom library |
+| Harvest | Capture Pattern | Extract reusable code into a framework |
+| Apply | Deploy Template | Inject framework code into current project |
+| Brain | Repository | Personal or shared framework storage |
+
+---
+
 ## User Workflow Diagram
 
 ```mermaid
@@ -17,21 +30,21 @@ flowchart TD
         C -->|C: Prototype| F[Minimal setup]
     end
 
-    subgraph PERSONA["👤 Persona Selection"]
+    subgraph PROFILE["👤 Profile Selection"]
         D & E & F --> G[jcapy persona]
-        G --> H{Select Persona}
+        G --> H{Select Workspace}
         H -->|Programmer| I[Core Library]
-        H -->|Custom| J[Personal Brain]
+        H -->|Custom| J[Personal Repository]
     end
 
     subgraph BUILD["🛠️ Development Phase"]
         I & J --> K[jcapy ls]
-        K --> L[Browse available skills]
-        L --> M{Need skill?}
-        M -->|Yes| N[jcapy apply SKILL_NAME]
+        K --> L[Browse available frameworks]
+        L --> M{Need framework?}
+        M -->|Yes| N[jcapy apply FRAMEWORK]
         M -->|No| O[Write code manually]
-        N --> P[Skill injected into project]
-        P --> Q{More skills?}
+        N --> P[Template deployed to project]
+        P --> Q{More frameworks?}
         Q -->|Yes| M
         Q -->|No| R[Continue development]
         O --> R
@@ -40,9 +53,9 @@ flowchart TD
     subgraph KNOWLEDGE["📚 Knowledge Management"]
         R --> S{New pattern discovered?}
         S -->|Yes| T[jcapy harvest]
-        T --> U[Create new skill from pattern]
+        T --> U[Capture pattern as framework]
         U --> V[jcapy push]
-        V --> W[Skill saved to brain]
+        V --> W[Framework published to repository]
         S -->|No| X[Continue]
         W --> X
     end
@@ -57,13 +70,13 @@ flowchart TD
 
     subgraph SYNC["🔄 Sync Phase"]
         AA & AB & AC --> AD[jcapy sync]
-        AD --> AE[Pull latest skills from cloud]
+        AD --> AE[Pull latest frameworks from cloud]
         AE --> AF[Ready for next iteration]
         AF --> K
     end
 
     style SETUP fill:#e1f5fe
-    style PERSONA fill:#fff3e0
+    style PROFILE fill:#fff3e0
     style BUILD fill:#e8f5e9
     style KNOWLEDGE fill:#f3e5f5
     style DEPLOY fill:#ffebee
@@ -77,15 +90,18 @@ flowchart TD
 | Phase | Command | Purpose |
 |-------|---------|---------|
 | **Setup** | `jcapy init` | Scaffold project with grade selection |
-| **Persona** | `jcapy persona` / `jcapy p` | Switch active brain/persona |
-| **Browse** | `jcapy ls` / `jcapy list` | View available skills |
-| **Search** | `jcapy search QUERY` | Find skills by content |
-| **Apply** | `jcapy apply SKILL` | Inject skill into project |
-| **Create** | `jcapy harvest` / `jcapy new` | Extract new skill from pattern |
-| **Deploy** | `jcapy deploy` | Grade-aware deployment |
-| **Sync** | `jcapy sync` | Pull updates from cloud |
-| **Push** | `jcapy push` | Upload local changes |
-| **Health** | `jcapy doctor` / `jcapy chk` | Check system status |
+| **Profile** | `jcapy persona` / `jcapy p` | Switch active workspace/profile |
+| **Browse** | `jcapy ls` / `jcapy list` | View available frameworks |
+| **Search** | `jcapy search QUERY` | Find frameworks by content |
+| **Deploy Template** | `jcapy apply FRAMEWORK` | Inject framework into project |
+| **Capture Pattern** | `jcapy harvest` / `jcapy new` | Extract new framework from code |
+| **Deploy** | `jcapy deploy` | Grade-aware deployment pipeline |
+| **Pull** | `jcapy sync` | Pull updates from repository |
+| **Publish** | `jcapy push` | Upload local changes to repository |
+| **Diagnose** | `jcapy doctor` / `jcapy chk` | Health-check system status |
+| **Preferences** | `jcapy config` | View/set UX preferences |
+| **Undo** | `jcapy undo` | Restore last deleted framework |
+| **Onboarding** | `jcapy tutorial` | Interactive getting-started guide |
 
 ---
 
@@ -96,20 +112,39 @@ flowchart TD
 mkdir my-app && cd my-app
 jcapy init
 
-# 2. Browse skills
+# 2. Browse frameworks
 jcapy ls
 
-# 3. Apply useful skills
+# 3. Deploy templates to project
 jcapy apply deploy_react
 jcapy apply structure_docs
 
-# 4. Deploy
+# 4. Deploy to environment
 jcapy deploy
 
-# 5. Save new patterns
-jcapy harvest  # Create skill from discovered pattern
+# 5. Capture new patterns
+jcapy harvest  # Extract pattern as reusable framework
 
-# 6. Sync with cloud
-jcapy push     # Upload to GitHub
-jcapy sync     # Pull latest
+# 6. Publish & sync with repository
+jcapy push     # Publish to GitHub
+jcapy sync     # Pull latest frameworks
 ```
+
+---
+
+## UX Configuration
+
+Customize your JCapy experience:
+
+```bash
+# Set high-contrast theme
+jcapy config set theme=high-contrast
+
+# Disable contextual hints
+jcapy config set hints=false
+
+# Enable reduced motion (accessibility)
+jcapy config set reduced_motion=true
+```
+
+Available themes: `default`, `high-contrast`, `monochrome`

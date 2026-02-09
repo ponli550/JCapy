@@ -113,3 +113,36 @@ def load_config_local():
         except:
              return {}
     return {}
+
+# ==========================================
+# UX PREFERENCE MANAGEMENT
+# ==========================================
+UX_DEFAULTS = {
+    "theme": "default",
+    "hints": True,
+    "reduced_motion": False,
+    "accessible": False,
+}
+
+def get_ux_preference(key: str):
+    """Get a UX preference value."""
+    config = load_config()
+    ux = config.get("ux", {})
+    return ux.get(key, UX_DEFAULTS.get(key))
+
+def set_ux_preference(key: str, value):
+    """Set a UX preference value."""
+    config = load_config()
+    if "ux" not in config:
+        config["ux"] = {}
+    config["ux"][key] = value
+    save_config(config)
+    return True
+
+def get_all_ux_preferences() -> dict:
+    """Get all UX preferences with defaults."""
+    config = load_config()
+    ux = config.get("ux", {})
+    result = UX_DEFAULTS.copy()
+    result.update(ux)
+    return result

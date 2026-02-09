@@ -23,12 +23,12 @@ RESET = '\033[0m'
 GREY = '\033[0;90m'
 BOLD = '\033[1m'
 
-TEMPLATE_PATH = os.path.join(DEFAULT_LIBRARY_PATH, "TEMPLATE_SKILL.md")
+TEMPLATE_PATH = os.path.join(DEFAULT_LIBRARY_PATH, "TEMPLATE_FRAMEWORK.md")
 
 # ==========================================
-# SKILL MANAGEMENT LOGIC
+# FRAMEWORK MANAGEMENT LOGIC
 # ==========================================
-def list_skills():
+def list_frameworks():
     lib_path = get_active_library_path()
     persona = get_current_persona_name()
     print(f"{BLUE}🧠 jcapy Knowledge Base ({persona}){RESET}")
@@ -38,7 +38,7 @@ def list_skills():
         print(f"{YELLOW}No library found at {lib_path}{RESET}")
         return
 
-    skills_count = 0
+    frameworks_count = 0
     for root, dirs, files in os.walk(lib_path):
         # Prune .git and __pycache__ from traversal
         dirs[:] = [d for d in dirs if d not in [".git", "__pycache__"]]
@@ -53,20 +53,20 @@ def list_skills():
             print(f"{GREY}{indent}📂 {folder_name}/{RESET}")
 
         for f in files:
-            if f.endswith(".md") and f != "TEMPLATE_SKILL.md":
+            if f.endswith(".md") and f != "TEMPLATE_FRAMEWORK.md":
                 path = os.path.join(root, f)
                 mtime = os.path.getmtime(path)
                 is_recent = (time.time() - mtime) < 86400 # 24 hours
                 tag = f" {YELLOW}(RECENT){RESET}" if is_recent else ""
 
                 print(f"{GREEN}{subindent}📜 {f}{tag}{RESET}")
-                skills_count += 1
+                frameworks_count += 1
 
-    if skills_count == 0:
-        print(f"   {GREY}(No skills harvested yet. Use 'jcapy harvest'){RESET}")
+    if frameworks_count == 0:
+        print(f"   {GREY}(No frameworks harvested yet. Use 'jcapy harvest'){RESET}")
     print("-----------------------------------------------------")
 
-def search_skills(query):
+def search_frameworks(query):
     lib_path = get_active_library_path()
     print(f"{BLUE}🔍 Searching Knowledge Base for '{query}'...{RESET}")
     print("-----------------------------------------------------")
@@ -94,10 +94,10 @@ def search_skills(query):
          print(f"{YELLOW}No matches found.{RESET}")
     print("-----------------------------------------------------")
 
-def open_skill(name_query):
+def open_framework(name_query):
     lib_path = get_active_library_path()
 
-    # Find the skill file by fuzzy name match
+    # Find the framework file by fuzzy name match
     target_file = None
 
     # Direct match first
@@ -133,13 +133,13 @@ def open_skill(name_query):
              # Fallback
              subprocess.call(['open', target_file])
     else:
-        print(f"{RED}Skill '{name_query}' not found.{RESET}")
+        print(f"{RED}Framework '{name_query}' not found.{RESET}")
         print(f"{GREY}Tip: Use 'jcapy search' to find the correct name.{RESET}")
 
-def delete_skill(name_query):
+def delete_framework(name_query):
     lib_path = get_active_library_path()
 
-    # Find the skill file by fuzzy name match
+    # Find the framework file by fuzzy name match
     target_file = None
 
     # Direct match first
@@ -160,23 +160,29 @@ def delete_skill(name_query):
             if target_file: break
 
     if target_file:
+        from jcapy.ui.ux.safety import confirm, get_undo_stack
+        from jcapy.ui.ux.feedback import show_success, show_error, show_warning
+
         print(f"{RED}WARNING: You are about to DELETE:{RESET}")
         print(f"   {target_file}")
-        confirm = input(f"{YELLOW}Are you sure? (type 'delete' to confirm): {RESET}")
 
-        if confirm == 'delete':
+        if confirm("Delete this framework?", destructive=True):
             try:
-                os.remove(target_file)
-                print(f"{GREEN}File deleted.{RESET}")
-            except Exception as e:
-                print(f"{RED}Error deleting file: {e}{RESET}")
-        else:
-            print("Aborted.")
-    else:
-        print(f"{RED}Skill '{name_query}' not found.{RESET}")
+                # Backup before delete
+                undo_stack = get_undo_stack()
+                undo_stack.push("delete", target_file, f"Delete: {os.path.basename(target_file)}")
 
-def get_skill_metadata(file_path):
-    """Extracts title and metadata from a skill file (YAML frontmatter)."""
+                os.remove(target_file)
+                show_success("Framework deleted", hint="Run 'jcapy undo' to restore")
+            except Exception as e:
+                show_error(f"Error deleting file: {e}")
+        else:
+            show_warning("Delete cancelled")
+    else:
+        print(f"{RED}Framework '{name_query}' not found.{RESET}")
+
+def get_framework_metadata(file_path):
+    """Extracts title and metadata from a framework file (YAML frontmatter)."""
     if not os.path.exists(file_path): return None
     try:
         with open(file_path, 'r') as f:
@@ -187,7 +193,7 @@ def get_skill_metadata(file_path):
     except:
         return None
 
-def backup_skill(file_path):
+def backup_framework(file_path):
     """Atomic Backup: Moves file to ~/.jcapy/backups/"""
     if not os.path.exists(file_path): return
 
@@ -202,7 +208,7 @@ def backup_skill(file_path):
     shutil.copy2(file_path, backup_path)
     return backup_path
 
-def harvest_skill(doc_path=None):
+def harvest_framework(doc_path=None):
     lib_path = get_active_library_path()
     print(f"{MAGENTA}🌾 jcapy Harvest Protocol ({get_current_persona_name()}){RESET}")
     print("-----------------------------------------------------")
@@ -210,42 +216,42 @@ def harvest_skill(doc_path=None):
     # Smart Harvest: Pre-fill from doc OR Draft Overwrite
     defaults = {}
     draft_mode = False
-    existing_skill_path = None
+    existing_framework_path = None
 
     if doc_path and os.path.exists(doc_path):
         # Check if this is a jcapy Draft (Metadata check)
-        draft_title = get_skill_metadata(doc_path)
+        draft_title = get_framework_metadata(doc_path)
 
         if draft_title:
-            print(f"{CYAN}📜 Detected Draft Skill: '{draft_title}'{RESET}")
-            # Try to find the ORIGINAL skill to overwrite
+            print(f"{CYAN}📜 Detected Draft Framework: '{draft_title}'{RESET}")
+            # Try to find the ORIGINAL framework to overwrite
             for root, dirs, files in os.walk(lib_path):
                 for f in files:
                     clean_name = os.path.basename(doc_path).replace(".bs.md", ".md")
                     if f == clean_name:
-                        existing_skill_path = os.path.join(root, f)
+                        existing_framework_path = os.path.join(root, f)
                         break
-                if existing_skill_path: break
+                if existing_framework_path: break
 
-            if existing_skill_path:
-                print(f"{YELLOW}⚠️  Found existing skill: {existing_skill_path}{RESET}")
+            if existing_framework_path:
+                print(f"{YELLOW}⚠️  Found existing framework: {existing_framework_path}{RESET}")
 
                 # Show Diff
                 print(f"\n{BOLD}Diff Preview:{RESET}")
                 try:
-                    subprocess.run(["diff", "--color", "-u", existing_skill_path, doc_path])
+                    subprocess.run(["diff", "--color", "-u", existing_framework_path, doc_path])
                 except Exception:
                     print(" (diff command failed, showing raw paths)")
 
-                confirm = input(f"\n{RED}Overwrite '{os.path.basename(existing_skill_path)}' with this draft? (y/N): {RESET}").strip().lower()
+                confirm = input(f"\n{RED}Overwrite '{os.path.basename(existing_framework_path)}' with this draft? (y/N): {RESET}").strip().lower()
 
                 if confirm == 'y':
                     # Atomic Swap
-                    backup = backup_skill(existing_skill_path)
+                    backup = backup_framework(existing_framework_path)
                     print(f"{GREY}📦 Backup saved to {backup}{RESET}")
 
-                    shutil.copy2(doc_path, existing_skill_path)
-                    print(f"{GREEN}✔ Skill updated successfully!{RESET}")
+                    shutil.copy2(doc_path, existing_framework_path)
+                    print(f"{GREEN}✔ Framework updated successfully!{RESET}")
 
                     # Optional: Delete draft?
                     rm_draft = input(f"{GREY}Delete draft file? (y/N): {RESET}").strip().lower()
@@ -276,7 +282,7 @@ tags: [tag1, tag2]
 grade: [Grade]
 ---
 
-# [Skill Name]
+# [Framework Name]
 
 > [Description]
 
@@ -296,14 +302,14 @@ grade: [Grade]
     # 1. Interactive Inputs
     try:
         def_name = defaults.get("name", "")
-        skill_name = input(f"{CYAN}? What is the name of this skill? (e.g., 'glass-card') [{def_name}]: {RESET}").strip() or def_name
-        if not skill_name:
+        framework_name = input(f"{CYAN}? What is the name of this framework? (e.g., 'glass-card') [{def_name}]: {RESET}").strip() or def_name
+        if not framework_name:
             print(f"{RED}Aborted.{RESET}")
             return
 
         # Auto-detect or ask for Deployment
         is_deploy = False
-        if "deploy" in skill_name.lower():
+        if "deploy" in framework_name.lower():
             is_deploy = True
         else:
             is_deploy_in = input(f"{CYAN}? Is this a Deployment Strategy? (y/N): {RESET}").strip().lower()
@@ -312,9 +318,9 @@ grade: [Grade]
         if is_deploy:
             domain = "devops"
             # Auto-prefix naming
-            if not skill_name.lower().startswith("deploy"):
-                skill_name = f"Deploy {skill_name}"
-            print(f"{GREEN}   → Auto-categorized as '{domain}' and prefixed as '{skill_name}'{RESET}")
+            if not framework_name.lower().startswith("deploy"):
+                framework_name = f"Deploy {framework_name}"
+            print(f"{GREEN}   → Auto-categorized as '{domain}' and prefixed as '{framework_name}'{RESET}")
         else:
             domain = input(f"{CYAN}? Domain (e.g. ui, backend, devops): {RESET}").strip().lower()
             if not domain:
@@ -333,7 +339,7 @@ grade: [Grade]
         cons_input = input(f"{CYAN}? Cons (comma separated) [{def_cons}]: {RESET}").strip() or def_cons
 
         # Sanitize filename
-        safe_name = skill_name.lower().replace(" ", "_") # deploying_react -> deploy_react
+        safe_name = framework_name.lower().replace(" ", "_") # deploying_react -> deploy_react
         # Ensure deploy prefix uses underscore for filename convention
         if is_deploy and not safe_name.startswith("deploy_"):
             safe_name = safe_name.replace("deploy-", "deploy_").replace("deploy", "deploy_")
@@ -352,7 +358,7 @@ grade: [Grade]
             template_content = t.read()
 
         # Simple replacement of placeholders
-        new_content = template_content.replace("[Skill Name]", skill_name)
+        new_content = template_content.replace("[Framework Name]", framework_name)
         new_content = new_content.replace("[e.g. Backend, UI, DevOps]", domain)
         new_content = new_content.replace("[Description]", description)
         new_content = new_content.replace("[Grade]", grade)
@@ -368,7 +374,7 @@ grade: [Grade]
              new_content = new_content.replace("(Paste your code snippet here)", snippet)
 
         if os.path.exists(target_path):
-            overwrite = input(f"{YELLOW}! Skill '{filename}' exists. Overwrite? (y/N): {RESET}")
+            overwrite = input(f"{YELLOW}! Framework '{filename}' exists. Overwrite? (y/N): {RESET}")
             if overwrite.lower() != 'y':
                 print("Aborted.")
                 return
@@ -376,7 +382,7 @@ grade: [Grade]
         with open(target_path, 'w') as f:
             f.write(new_content)
 
-        print(f"\n{GREEN}✅ Skill Harvested!{RESET}")
+        print(f"\n{GREEN}✅ Framework Harvested!{RESET}")
         print(f"   Location: {target_path}")
         print(f"   Action: Open this file and paste your code snippet.")
 
@@ -452,7 +458,7 @@ def parse_markdown_doc(doc_path):
     return meta
 
 def save_harvested_deploy(name, steps, lib_path):
-    """Saves a deployment strategy as an executable skill"""
+    """Saves a deployment strategy as an executable framework"""
     safe_name = re.sub(r'[^a-zA-Z0-9_-]', '', name).lower()
     filename = f"deploy_{safe_name}.md"
     devops_dir = os.path.join(lib_path, "skills", "devops")
@@ -477,10 +483,10 @@ def save_harvested_deploy(name, steps, lib_path):
         f.write(content)
 
 # ==========================================
-# RICH-DEPENDENT SKILL FEATURES (Apply/Merge)
+# RICH-DEPENDENT FRAMEWORK FEATURES (Apply/Merge)
 # ==========================================
-def apply_skill(skill_name, dry_run=False, context=None):
-    """Parses and executes bash blocks from a Skill File (Executable Knowledge)"""
+def apply_framework(framework_name, dry_run=False, context=None):
+    """Parses and executes bash blocks from a Framework File (Executable Knowledge)"""
     try:
         from rich.console import Console
         from rich.prompt import Prompt
@@ -495,19 +501,19 @@ def apply_skill(skill_name, dry_run=False, context=None):
         # Direct/Fuzzy Search
         for root, dirs, files in os.walk(lib_path):
             for f in files:
-                if f == skill_name or f == f"{skill_name}.md":
+                if f == framework_name or f == f"{framework_name}.md":
                     target_file = os.path.join(root, f)
                     break
-                if skill_name.lower() in f.lower() and f.endswith(".md"):
+                if framework_name.lower() in f.lower() and f.endswith(".md"):
                      target_file = os.path.join(root, f)
                      break
             if target_file: break
 
         if not target_file:
-            console.print(f"[bold red]❌ Error:[/bold red] Skill '{skill_name}' not found.")
+            console.print(f"[bold red]❌ Error:[/bold red] Framework '{framework_name}' not found.")
             return
 
-        console.print(f"[bold cyan]🔍 Found Skill:[/bold cyan] {target_file}")
+        console.print(f"[bold cyan]🔍 Found Framework:[/bold cyan] {target_file}")
 
         # 2. Parse Executable Blocks
         with open(target_file, 'r') as f:
@@ -563,7 +569,7 @@ def apply_skill(skill_name, dry_run=False, context=None):
             else:
                 console.print("[dim]Skipped by user.[/dim]")
 
-        console.print("\n[bold green]✅ Skill Applied Successfully![/bold green]")
+        console.print("\n[bold green]✅ Framework Applied Successfully![/bold green]")
 
     except ImportError:
         print("Rich not installed. Run 'pip install rich'")
@@ -604,8 +610,8 @@ def parse_frontmatter(content):
         return None
     return None
 
-def merge_skills(init_project_func=None):
-    """Merge two skills (Frontend + Backend) into a unified blueprint.
+def merge_frameworks(init_project_func=None):
+    """Merge two frameworks (Frontend + Backend) into a unified blueprint.
        Pass init_project_func to avoid circular dependency if needed.
     """
     try:
@@ -616,7 +622,7 @@ def merge_skills(init_project_func=None):
 
         console = Console()
         console.print(Panel.fit("[bold magenta]🧬 jcapy Blueprint Merge[/bold magenta]", border_style="magenta"))
-        console.print("[dim]Create a unified project from separate Frontend and Backend skills.[/dim]\n")
+        console.print("[dim]Create a unified project from separate Frontend and Backend frameworks.[/dim]\n")
 
         # 0.5 Selection of Library Source
         config = load_config()
@@ -627,7 +633,7 @@ def merge_skills(init_project_func=None):
         for p in sorted(personas_dict.keys()):
             options.append(f"Persona: {p}")
 
-        idx = interactive_menu("Select Library Source for Skills", options)
+        idx = interactive_menu("Select Library Source for Frameworks", options)
         choice = options[idx]
 
         lib_paths = []
@@ -654,70 +660,70 @@ def merge_skills(init_project_func=None):
         # 1. Tech Stack Advisor (Comparison Table)
         console.print("\n[bold cyan]💡 Tech Stack Advisor[/bold cyan]")
 
-        all_skills = {} # name -> metadata
+        all_frameworks = {} # name -> metadata
 
         # Recursive Scan and Parse
-        with console.status("[bold cyan]Scanning library for skills...") as status:
+        with console.status("[bold cyan]Scanning library for frameworks...") as status:
             for lib_path in lib_paths:
                 if not os.path.exists(lib_path): continue
                 for root, dirs, files in os.walk(lib_path):
                     for f in files:
-                        if f.endswith(".md") and f != "TEMPLATE_SKILL.md":
+                        if f.endswith(".md") and f != "TEMPLATE_FRAMEWORK.md":
                             path = os.path.join(root, f)
                             try:
                                 with open(path, 'r') as file:
                                     content = file.read()
                                     meta = parse_frontmatter(content)
                                     if meta:
-                                        skill_id = f.replace(".md", "")
-                                        if skill_id not in all_skills:
-                                            all_skills[skill_id] = meta
-                                            all_skills[skill_id]['path'] = path
+                                        framework_id = f.replace(".md", "")
+                                        if framework_id not in all_frameworks:
+                                            all_frameworks[framework_id] = meta
+                                            all_frameworks[framework_id]['path'] = path
                             except:
                                 continue
 
-        if not all_skills:
-            console.print("[red]No skills with valid metadata found in library.[/red]")
+        if not all_frameworks:
+            console.print("[red]No frameworks with valid metadata found in library.[/red]")
             return
 
         # Display Comparison Table
-        table = Table(title="Available Skills", show_header=True, header_style="bold magenta", box=None)
-        table.add_column("Skill ID", style="cyan")
+        table = Table(title="Available Frameworks", show_header=True, header_style="bold magenta", box=None)
+        table.add_column("Framework ID", style="cyan")
         table.add_column("Name", style="green")
         table.add_column("Description", style="white")
         table.add_column("Grade", style="yellow")
         table.add_column("Pros", style="blue")
         table.add_column("Cons", style="red")
 
-        for skill_id, meta in sorted(all_skills.items(), key=lambda item: str(item[1].get('grade', 'Z'))):
-            skill_name = str(meta.get('name', skill_id))
-            skill_desc = str(meta.get('description', 'No description'))
-            skill_grade = str(meta.get('grade', '-'))
+        for framework_id, meta in sorted(all_frameworks.items(), key=lambda item: str(item[1].get('grade', 'Z'))):
+            framework_name = str(meta.get('name', framework_id))
+            framework_desc = str(meta.get('description', 'No description'))
+            framework_grade = str(meta.get('grade', '-'))
             pros = ", ".join(meta.get('pros', [])) if isinstance(meta.get('pros'), list) else str(meta.get('pros', ''))
             cons = ", ".join(meta.get('cons', [])) if isinstance(meta.get('cons'), list) else str(meta.get('cons', ''))
 
-            table.add_row(skill_id, skill_name, skill_desc, skill_grade, pros, cons)
+            table.add_row(framework_id, framework_name, framework_desc, framework_grade, pros, cons)
 
         console.print(table)
         console.print("\n")
 
         # 2. Select Frontend
-        console.print("\n[bold cyan]1. Select Frontend Skill[/bold cyan]")
-        frontend_options = [sid for sid, m in all_skills.items() if 'frontend' in [t.lower() for t in m.get('tags', [])] or 'ui' in [t.lower() for t in m.get('tags', [])]]
+        console.print("\n[bold cyan]1. Select Frontend Framework[/bold cyan]")
+        frontend_options = [sid for sid, m in all_frameworks.items() if 'frontend' in [t.lower() for t in m.get('tags', [])] or 'ui' in [t.lower() for t in m.get('tags', [])]]
 
         if not frontend_options:
-            frontend_options = sorted(all_skills.keys())
+            frontend_options = sorted(all_frameworks.keys())
 
         idx = interactive_menu("Choose Frontend", frontend_options)
         frontend_choice = frontend_options[idx]
         console.print(f"[green]✔ Selected:[/green] {frontend_choice}")
 
         # 3. Select Backend
-        console.print("\n[bold cyan]2. Select Backend Skill[/bold cyan]")
-        backend_options = [sid for sid, m in all_skills.items() if 'backend' in [t.lower() for t in m.get('tags', [])] or 'api' in [t.lower() for t in m.get('tags', [])]]
+        console.print("\n[bold cyan]2. Select Backend Framework[/bold cyan]")
+        backend_options = [sid for sid, m in all_frameworks.items() if 'backend' in [t.lower() for t in m.get('tags', [])] or 'api' in [t.lower() for t in m.get('tags', [])]]
 
         if not backend_options:
-            backend_options = sorted(all_skills.keys())
+            backend_options = sorted(all_frameworks.keys())
         backend_options.append("None (Frontend Only)")
 
         idx = interactive_menu("Choose Backend", backend_options)
@@ -744,12 +750,12 @@ def merge_skills(init_project_func=None):
 
         # Apply Frontend
         console.print(f"\n[cyan]Applying Frontend: {frontend_choice}[/cyan]")
-        apply_skill(frontend_choice, context={"target_dir": "apps/web"})
+        apply_framework(frontend_choice, context={"target_dir": "apps/web"})
 
         # Apply Backend
         if backend_choice:
             console.print(f"\n[cyan]Applying Backend: {backend_choice}[/cyan]")
-            apply_skill(backend_choice, context={"target_dir": "apps/api"})
+            apply_framework(backend_choice, context={"target_dir": "apps/api"})
 
         console.print("\n[green]Merge Sequence Completed.[/green]")
 

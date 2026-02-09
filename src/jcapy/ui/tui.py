@@ -75,7 +75,7 @@ def draw_dual_pane(stdscr, selected_idx, skills, filter_text):
     try:
         left_win = stdscr.subwin(h - 2, left_w, 1, 0) # Start at (1,0)
         left_win.box()
-        left_win.addstr(0, 2, " SKILLS ", curses.color_pair(COLOR_TITLE))
+        left_win.addstr(0, 2, " FRAMEWORKS ", curses.color_pair(COLOR_TITLE))
 
         # Calculate scroll offset for list
         max_items = h - 4

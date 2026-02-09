@@ -52,7 +52,7 @@ def check_for_app_updates():
     # save_config(config)
 
 
-def check_for_skill_updates():
+def check_for_framework_updates():
     """Background check for skill library updates (throttled to 24h)."""
     global SKILL_UPDATES_AVAILABLE
     config = load_config()

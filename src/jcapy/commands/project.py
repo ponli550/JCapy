@@ -5,7 +5,7 @@ import json
 import sys
 from datetime import datetime
 from jcapy.config import get_active_library_path
-from jcapy.commands.skills import save_harvested_deploy, apply_skill
+from jcapy.commands.frameworks import save_harvested_deploy, apply_framework
 
 def load_config_local():
     """Load local .jcapyrc project config"""
@@ -259,16 +259,16 @@ def deploy_project():
 
         elif selected_strategy["type"] == "harvested":
              console.print(f"[bold green]🚀 Launching Harvested Strategy: {selected_strategy['name']}[/bold green]")
-             # Use apply_skill by name or path?
-             # apply_skill expects skill name. Since it's a file path, we can try passing the file content or name
-             # But apply_skill searches library.
-             # We can just manually run the logic here or make apply_skill smarter
+             # Use apply_framework by name or path?
+             # apply_framework expects skill name. Since it's a file path, we can try passing the file content or name
+             # But apply_framework searches library.
+             # We can just manually run the logic here or make apply_framework smarter
              # For now, let's implement the block extraction manually here (code reuse bad, but safe)
-             # Wait, I imported `apply_skill`! Can I use it?
-             # `apply_skill` takes a name. `strategies` has the full path.
+             # Wait, I imported `apply_framework`! Can I use it?
+             # `apply_framework` takes a name. `strategies` has the full path.
              # Let's just pass the filename minus extension?
              skill_name = os.path.basename(selected_strategy['path']).replace(".md", "")
-             apply_skill(skill_name)
+             apply_framework(skill_name)
              return
 
         elif selected_strategy["type"] == "manual":
