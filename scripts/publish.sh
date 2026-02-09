@@ -5,6 +5,7 @@ set -e
 # Usage: ./scripts/publish.sh
 #
 # Features:
+# - Auto-creates virtual environment for PyPI builds
 # - Pre-commit pending changes
 # - Version bump (patch/minor/major)
 # - Git tag + push
@@ -17,6 +18,27 @@ cd "$(dirname "$0")/.."
 REPO_NAME="JCapy"
 GITHUB_USER="ponli550"
 HOMEBREW_TAP_REPO="homebrew-JCapy"
+
+# ==========================================
+# PHASE 0: Virtual Environment Setup (for PyPI)
+# ==========================================
+
+setup_venv() {
+    if [ -z "$VIRTUAL_ENV" ]; then
+        echo ""
+        echo "🔧 Setting up virtual environment for PyPI build..."
+
+        if [ -d "venv" ]; then
+            source venv/bin/activate
+            echo "   ✔ Activated existing venv"
+        else
+            python3 -m venv venv
+            source venv/bin/activate
+            pip install --quiet --upgrade pip build twine
+            echo "   ✔ Created and configured venv"
+        fi
+    fi
+}
 
 # ==========================================
 # PHASE 1: Pre-Commit Pending Changes
@@ -225,6 +247,9 @@ fi
 # ==========================================
 
 if $DO_PYPI; then
+    # Ensure venv is active for PyPI operations
+    setup_venv
+
     echo ""
     echo "🐍 Building for PyPI..."
 

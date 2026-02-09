@@ -5,6 +5,7 @@ set -e
 # Usage: ./scripts/publishPip.sh
 #
 # Features:
+# - Auto-creates virtual environment if needed
 # - Pre-commit pending changes
 # - Version bump (patch/minor/major)
 # - Git tag + push
@@ -17,6 +18,34 @@ echo "================================"
 cd "$(dirname "$0")/.."
 GITHUB_USER="ponli550"
 REPO_NAME="JCapy"
+
+# ==========================================
+# PHASE 0a: Virtual Environment Check
+# ==========================================
+
+if [ -z "$VIRTUAL_ENV" ]; then
+    echo ""
+    echo "🔧 No virtual environment detected."
+
+    if [ -d "venv" ]; then
+        echo "   Found existing venv/ directory."
+        echo "   Activating..."
+        source venv/bin/activate
+        echo "   ✔ Activated: $VIRTUAL_ENV"
+    else
+        echo "   Creating new virtual environment..."
+        python3 -m venv venv
+        source venv/bin/activate
+        echo "   ✔ Created and activated: $VIRTUAL_ENV"
+
+        echo "   Installing build tools..."
+        pip install --quiet --upgrade pip build twine
+        echo "   ✔ Build tools installed."
+    fi
+else
+    echo ""
+    echo "✔ Virtual environment active: $VIRTUAL_ENV"
+fi
 
 # ==========================================
 # PHASE 0: Check PyPI Credentials
