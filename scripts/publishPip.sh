@@ -1,22 +1,57 @@
 #!/bin/bash
 set -e
 
-# jcapy Combined Release Automation
-# Usage: ./scripts/publish.sh
+# jcapy PyPI Release Automation
+# Usage: ./scripts/publishPip.sh
 #
 # Features:
 # - Pre-commit pending changes
 # - Version bump (patch/minor/major)
 # - Git tag + push
-# - Choose: Homebrew / PyPI / Both
+# - Build wheel + sdist
+# - Upload to PyPI (TestPyPI or Production)
 
-echo "🚀 jcapy Release Protocol (Combined)"
-echo "======================================"
+echo "🐍 jcapy PyPI Release Protocol"
+echo "================================"
 
 cd "$(dirname "$0")/.."
-REPO_NAME="JCapy"
 GITHUB_USER="ponli550"
-HOMEBREW_TAP_REPO="homebrew-JCapy"
+REPO_NAME="JCapy"
+
+# ==========================================
+# PHASE 0: Check PyPI Credentials
+# ==========================================
+
+echo ""
+echo "🔐 Checking PyPI credentials..."
+
+HAS_PYPIRC=false
+HAS_ENV_TOKEN=false
+
+if [ -f ~/.pypirc ]; then
+    HAS_PYPIRC=true
+    echo "   ✔ Found ~/.pypirc"
+fi
+
+if [ -n "$TWINE_PASSWORD" ]; then
+    HAS_ENV_TOKEN=true
+    echo "   ✔ Found TWINE_PASSWORD environment variable"
+fi
+
+if ! $HAS_PYPIRC && ! $HAS_ENV_TOKEN; then
+    echo "⚠️  No PyPI credentials found!"
+    echo ""
+    echo "Options:"
+    echo "  1. Create ~/.pypirc with your API token"
+    echo "  2. Set TWINE_USERNAME=__token__ and TWINE_PASSWORD=<your-token>"
+    echo ""
+    read -p "❓ Continue anyway? (will prompt for token) [y/n]: " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Aborted."
+        exit 1
+    fi
+fi
 
 # ==========================================
 # PHASE 1: Pre-Commit Pending Changes
@@ -126,6 +161,7 @@ fi
 # PHASE 4: Tag & Push
 # ==========================================
 
+# Check if tag already exists
 if git rev-parse "v$NEW_VERSION" >/dev/null 2>&1; then
     echo "⚠️  Tag v$NEW_VERSION already exists. Skipping tag creation."
 else
@@ -139,136 +175,57 @@ git push origin "v$NEW_VERSION" 2>/dev/null || echo "   (Tag already pushed)"
 echo "✅ Code released to GitHub."
 
 # ==========================================
-# PHASE 5: Select Distribution Targets
+# PHASE 5: Build Distribution
 # ==========================================
 
 echo ""
-echo "Select Distribution Targets:"
-echo "  1) 🍺 Homebrew only"
-echo "  2) 🐍 PyPI only"
-echo "  3) 🚀 Both (Homebrew + PyPI)"
-echo "  0) Skip distribution (code release only)"
-read -p "Choice (0-3): " -n 1 -r
+echo "🔨 Building distribution packages..."
+
+# Clean old builds
+rm -rf dist/ build/ *.egg-info src/*.egg-info
+
+# Build wheel and sdist
+python3 -m pip install --quiet --upgrade build
+python3 -m build
+
+echo "✅ Built:"
+ls -la dist/
+
+# ==========================================
+# PHASE 6: Upload to PyPI
+# ==========================================
+
+echo ""
+echo "Select PyPI Target:"
+echo "  1) TestPyPI (recommended for first release)"
+echo "  2) Production PyPI"
+echo "  0) Skip upload (build only)"
+read -p "Choice (0-2): " -n 1 -r
 echo
 
-DO_HOMEBREW=false
-DO_PYPI=false
-
-if [[ $REPLY == "1" ]]; then
-    DO_HOMEBREW=true
-elif [[ $REPLY == "2" ]]; then
-    DO_PYPI=true
-elif [[ $REPLY == "3" ]]; then
-    DO_HOMEBREW=true
-    DO_PYPI=true
-elif [[ $REPLY == "0" ]]; then
-    echo "⏭️  Skipping distribution."
-fi
-
-# ==========================================
-# PHASE 6a: Homebrew Update
-# ==========================================
-
-if $DO_HOMEBREW; then
-    echo ""
-    echo "🍺 Updating Homebrew Tap..."
-
-    URL="https://github.com/$GITHUB_USER/$REPO_NAME/archive/refs/tags/v$NEW_VERSION.tar.gz"
-    echo "   Waiting for GitHub to generate tarball..."
-    sleep 5
-
-    SHA=$(curl -sL "$URL" | shasum -a 256 | cut -d ' ' -f 1)
-    echo "   SHA256: $SHA"
-
-    TAP_REPO="https://github.com/$GITHUB_USER/$HOMEBREW_TAP_REPO.git"
-    TEMP_DIR="/tmp/jcapy-homebrew-release-$(date +%s)"
-
-    git clone "$TAP_REPO" "$TEMP_DIR" 2>/dev/null || {
-        echo "⚠️  Could not clone tap repo. Manual update required."
-        echo "   URL: $URL"
-        echo "   SHA256: $SHA"
-    }
-
-    if [ -d "$TEMP_DIR" ]; then
-        FORMULA_PATH="$TEMP_DIR/Formula/jcapy.rb"
-        if [ ! -f "$FORMULA_PATH" ]; then
-            FORMULA_PATH="$TEMP_DIR/jcapy.rb"
-        fi
-
-        if [ -f "$FORMULA_PATH" ]; then
-            echo "📝 Updating $FORMULA_PATH..."
-            if [[ "$OSTYPE" == "darwin"* ]]; then
-                sed -i '' "s|url \".*\"|url \"$URL\"|" "$FORMULA_PATH"
-                sed -i '' "s|sha256 \".*\"|sha256 \"$SHA\"|" "$FORMULA_PATH"
-            else
-                sed -i "s|url \".*\"|url \"$URL\"|" "$FORMULA_PATH"
-                sed -i "s|sha256 \".*\"|sha256 \"$SHA\"|" "$FORMULA_PATH"
-            fi
-
-            cd "$TEMP_DIR"
-            git config user.email "jcapy-bot@ponli550.com"
-            git config user.name "JCapy Release Bot"
-            git add .
-            git commit -m "Update jcapy to v$NEW_VERSION"
-            git push origin main
-            cd - > /dev/null
-
-            echo "✅ Homebrew Tap Updated!"
-        fi
-
-        rm -rf "$TEMP_DIR"
-    fi
-fi
-
-# ==========================================
-# PHASE 6b: PyPI Upload
-# ==========================================
-
-if $DO_PYPI; then
-    echo ""
-    echo "🐍 Building for PyPI..."
-
-    # Clean old builds
-    rm -rf dist/ build/ *.egg-info src/*.egg-info
-
-    # Build
-    python3 -m pip install --quiet --upgrade build
-    python3 -m build
-
-    echo "✅ Built:"
-    ls -la dist/
-
-    echo ""
-    echo "Select PyPI Target:"
-    echo "  1) TestPyPI (recommended for first release)"
-    echo "  2) Production PyPI"
-    read -p "Choice (1-2): " -n 1 -r
-    echo
-
+if [[ $REPLY == "0" ]]; then
+    echo "⏭️  Skipping upload."
+elif [[ $REPLY == "1" ]]; then
+    echo "🚀 Uploading to TestPyPI..."
     python3 -m pip install --quiet --upgrade twine
-
-    if [[ $REPLY == "1" ]]; then
-        echo "🚀 Uploading to TestPyPI..."
-        python3 -m twine upload --repository testpypi dist/*
-        echo "✅ Uploaded to TestPyPI!"
-        echo "   Test: pip install --index-url https://test.pypi.org/simple/ --no-deps jcapy"
-    elif [[ $REPLY == "2" ]]; then
-        echo "🚀 Uploading to Production PyPI..."
-        python3 -m twine upload dist/*
-        echo "✅ Uploaded to PyPI!"
-        echo "   Install: pip install jcapy"
-    fi
+    python3 -m twine upload --repository testpypi dist/*
+    echo ""
+    echo "✅ Uploaded to TestPyPI!"
+    echo "   Test: pip install --index-url https://test.pypi.org/simple/ --no-deps jcapy"
+elif [[ $REPLY == "2" ]]; then
+    echo "🚀 Uploading to Production PyPI..."
+    python3 -m pip install --quiet --upgrade twine
+    python3 -m twine upload dist/*
+    echo ""
+    echo "✅ Uploaded to PyPI!"
+    echo "   Install: pip install jcapy"
+else
+    echo "Invalid choice. Skipping upload."
 fi
 
 echo ""
-echo "🎉 Release Complete!"
-echo "======================================"
+echo "🎉 PyPI Release Complete!"
+echo "================================"
 echo "  Version: v$NEW_VERSION"
 echo "  GitHub:  https://github.com/$GITHUB_USER/$REPO_NAME"
-if $DO_HOMEBREW; then
-    echo "  Homebrew: brew install $GITHUB_USER/jcapy/jcapy"
-fi
-if $DO_PYPI; then
-    echo "  PyPI: pip install jcapy"
-fi
 echo ""

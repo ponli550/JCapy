@@ -1,22 +1,69 @@
 #!/bin/bash
 set -e
 
-# jcapy Combined Release Automation
+# jcapy Release Automation (Complete Edition)
 # Usage: ./scripts/publish.sh
 #
 # Features:
+# - First-time GitHub repo setup
 # - Pre-commit pending changes
 # - Version bump (patch/minor/major)
 # - Git tag + push
-# - Choose: Homebrew / PyPI / Both
+# - Homebrew tap update
 
-echo "🚀 jcapy Release Protocol (Combined)"
-echo "======================================"
+echo "🚀 jcapy Release Protocol"
+echo "================================"
 
 cd "$(dirname "$0")/.."
-REPO_NAME="JCapy"
+REPO_NAME="homebrew-JCapy"
 GITHUB_USER="ponli550"
-HOMEBREW_TAP_REPO="homebrew-JCapy"
+
+# ==========================================
+# PHASE 0: First-Time Setup Check
+# ==========================================
+
+# Check if gh CLI is available (optional but recommended)
+HAS_GH=false
+if command -v gh &> /dev/null; then
+    HAS_GH=true
+fi
+
+# Check if remote exists
+if ! git remote get-url origin &> /dev/null; then
+    echo "⚠️  No remote 'origin' configured."
+    echo ""
+
+    if $HAS_GH; then
+        echo "🔧 GitHub CLI detected. Setting up..."
+
+        # Check if repo exists on GitHub
+        if gh repo view "$GITHUB_USER/$REPO_NAME" &> /dev/null; then
+            echo "📦 Found existing repo: $GITHUB_USER/$REPO_NAME"
+        else
+            echo "📦 Creating GitHub repo: $GITHUB_USER/$REPO_NAME"
+            read -p "❓ Create as (1) Public or (2) Private? [1]: " -n 1 -r
+            echo
+
+            VISIBILITY="--public"
+            if [[ $REPLY == "2" ]]; then
+                VISIBILITY="--private"
+            fi
+
+            gh repo create "$GITHUB_USER/$REPO_NAME" $VISIBILITY --source=. --remote=origin
+            echo "✅ Repository created!"
+        fi
+    else
+        echo "💡 Install GitHub CLI for automatic repo creation: brew install gh"
+        read -p "❓ Enter remote URL (e.g., https://github.com/$GITHUB_USER/$REPO_NAME.git): " REMOTE_URL
+
+        if [[ -z "$REMOTE_URL" ]]; then
+            REMOTE_URL="https://github.com/$GITHUB_USER/$REPO_NAME.git"
+        fi
+
+        git remote add origin "$REMOTE_URL"
+        echo "✅ Remote 'origin' added: $REMOTE_URL"
+    fi
+fi
 
 # ==========================================
 # PHASE 1: Pre-Commit Pending Changes
@@ -48,6 +95,7 @@ fi
 # PHASE 2: First Push (if needed)
 # ==========================================
 
+# Check if we have any pushable commits
 UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo "")
 
 if [[ -z "$UPSTREAM" ]]; then
@@ -126,6 +174,7 @@ fi
 # PHASE 4: Tag & Push
 # ==========================================
 
+# Check if tag already exists
 if git rev-parse "v$NEW_VERSION" >/dev/null 2>&1; then
     echo "⚠️  Tag v$NEW_VERSION already exists. Skipping tag creation."
 else
@@ -139,40 +188,15 @@ git push origin "v$NEW_VERSION" 2>/dev/null || echo "   (Tag already pushed)"
 echo "✅ Code released to GitHub."
 
 # ==========================================
-# PHASE 5: Select Distribution Targets
+# PHASE 5: Homebrew Update (Optional)
 # ==========================================
 
 echo ""
-echo "Select Distribution Targets:"
-echo "  1) 🍺 Homebrew only"
-echo "  2) 🐍 PyPI only"
-echo "  3) 🚀 Both (Homebrew + PyPI)"
-echo "  0) Skip distribution (code release only)"
-read -p "Choice (0-3): " -n 1 -r
+read -p "🍺 Update Homebrew tap? (y/n) [y]: " -n 1 -r
 echo
 
-DO_HOMEBREW=false
-DO_PYPI=false
-
-if [[ $REPLY == "1" ]]; then
-    DO_HOMEBREW=true
-elif [[ $REPLY == "2" ]]; then
-    DO_PYPI=true
-elif [[ $REPLY == "3" ]]; then
-    DO_HOMEBREW=true
-    DO_PYPI=true
-elif [[ $REPLY == "0" ]]; then
-    echo "⏭️  Skipping distribution."
-fi
-
-# ==========================================
-# PHASE 6a: Homebrew Update
-# ==========================================
-
-if $DO_HOMEBREW; then
-    echo ""
-    echo "🍺 Updating Homebrew Tap..."
-
+if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+    echo "🍺 Calculating SHA256 for Homebrew..."
     URL="https://github.com/$GITHUB_USER/$REPO_NAME/archive/refs/tags/v$NEW_VERSION.tar.gz"
     echo "   Waiting for GitHub to generate tarball..."
     sleep 5
@@ -180,95 +204,54 @@ if $DO_HOMEBREW; then
     SHA=$(curl -sL "$URL" | shasum -a 256 | cut -d ' ' -f 1)
     echo "   SHA256: $SHA"
 
-    TAP_REPO="https://github.com/$GITHUB_USER/$HOMEBREW_TAP_REPO.git"
+    TAP_REPO="https://github.com/$GITHUB_USER/homebrew-$REPO_NAME.git"
     TEMP_DIR="/tmp/jcapy-homebrew-release-$(date +%s)"
 
+    echo "🍺 Updating Homebrew Tap ($TAP_REPO)..."
     git clone "$TAP_REPO" "$TEMP_DIR" 2>/dev/null || {
         echo "⚠️  Could not clone tap repo. Manual update required."
         echo "   URL: $URL"
         echo "   SHA256: $SHA"
+        echo ""
+        echo "🎉 Release Complete (Homebrew skipped)!"
+        exit 0
     }
 
-    if [ -d "$TEMP_DIR" ]; then
-        FORMULA_PATH="$TEMP_DIR/Formula/jcapy.rb"
-        if [ ! -f "$FORMULA_PATH" ]; then
-            FORMULA_PATH="$TEMP_DIR/jcapy.rb"
+    FORMULA_PATH="$TEMP_DIR/Formula/jcapy.rb"
+    if [ ! -f "$FORMULA_PATH" ]; then
+        FORMULA_PATH="$TEMP_DIR/jcapy.rb"
+    fi
+
+    if [ -f "$FORMULA_PATH" ]; then
+        echo "📝 Updating $FORMULA_PATH..."
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s|url \".*\"|url \"$URL\"|" "$FORMULA_PATH"
+            sed -i '' "s|sha256 \".*\"|sha256 \"$SHA\"|" "$FORMULA_PATH"
+        else
+            sed -i "s|url \".*\"|url \"$URL\"|" "$FORMULA_PATH"
+            sed -i "s|sha256 \".*\"|sha256 \"$SHA\"|" "$FORMULA_PATH"
         fi
 
-        if [ -f "$FORMULA_PATH" ]; then
-            echo "📝 Updating $FORMULA_PATH..."
-            if [[ "$OSTYPE" == "darwin"* ]]; then
-                sed -i '' "s|url \".*\"|url \"$URL\"|" "$FORMULA_PATH"
-                sed -i '' "s|sha256 \".*\"|sha256 \"$SHA\"|" "$FORMULA_PATH"
-            else
-                sed -i "s|url \".*\"|url \"$URL\"|" "$FORMULA_PATH"
-                sed -i "s|sha256 \".*\"|sha256 \"$SHA\"|" "$FORMULA_PATH"
-            fi
+        cd "$TEMP_DIR"
+        git config user.email "jcapy-bot@ponli550.com"
+        git config user.name "JCapy Release Bot"
+        git add .
+        git commit -m "Update jcapy to v$NEW_VERSION"
+        git push origin main
+        cd - > /dev/null
 
-            cd "$TEMP_DIR"
-            git config user.email "jcapy-bot@ponli550.com"
-            git config user.name "JCapy Release Bot"
-            git add .
-            git commit -m "Update jcapy to v$NEW_VERSION"
-            git push origin main
-            cd - > /dev/null
-
-            echo "✅ Homebrew Tap Updated!"
-        fi
-
-        rm -rf "$TEMP_DIR"
+        echo "✅ Homebrew Tap Updated!"
+    else
+        echo "❌ Could not find jcapy.rb in cloned tap."
     fi
-fi
 
-# ==========================================
-# PHASE 6b: PyPI Upload
-# ==========================================
-
-if $DO_PYPI; then
-    echo ""
-    echo "🐍 Building for PyPI..."
-
-    # Clean old builds
-    rm -rf dist/ build/ *.egg-info src/*.egg-info
-
-    # Build
-    python3 -m pip install --quiet --upgrade build
-    python3 -m build
-
-    echo "✅ Built:"
-    ls -la dist/
-
-    echo ""
-    echo "Select PyPI Target:"
-    echo "  1) TestPyPI (recommended for first release)"
-    echo "  2) Production PyPI"
-    read -p "Choice (1-2): " -n 1 -r
-    echo
-
-    python3 -m pip install --quiet --upgrade twine
-
-    if [[ $REPLY == "1" ]]; then
-        echo "🚀 Uploading to TestPyPI..."
-        python3 -m twine upload --repository testpypi dist/*
-        echo "✅ Uploaded to TestPyPI!"
-        echo "   Test: pip install --index-url https://test.pypi.org/simple/ --no-deps jcapy"
-    elif [[ $REPLY == "2" ]]; then
-        echo "🚀 Uploading to Production PyPI..."
-        python3 -m twine upload dist/*
-        echo "✅ Uploaded to PyPI!"
-        echo "   Install: pip install jcapy"
-    fi
+    rm -rf "$TEMP_DIR"
 fi
 
 echo ""
 echo "🎉 Release Complete!"
-echo "======================================"
+echo "================================"
 echo "  Version: v$NEW_VERSION"
 echo "  GitHub:  https://github.com/$GITHUB_USER/$REPO_NAME"
-if $DO_HOMEBREW; then
-    echo "  Homebrew: brew install $GITHUB_USER/jcapy/jcapy"
-fi
-if $DO_PYPI; then
-    echo "  PyPI: pip install jcapy"
-fi
+echo "  Install: pipx install git+https://github.com/$GITHUB_USER/$REPO_NAME"
 echo ""
