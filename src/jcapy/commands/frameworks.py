@@ -338,6 +338,23 @@ grade: [Grade]
         def_cons = defaults.get("cons", "")
         cons_input = input(f"{CYAN}? Cons (comma separated) [{def_cons}]: {RESET}").strip() or def_cons
 
+        # NEW: Inline Code Capture
+        print(f"\n{CYAN}? Paste executable code (type 'EOF' on new line when done, or press Enter to skip):{RESET}")
+        print(f"{GREY}  This will be injected into the <!-- jcapy:EXEC --> block{RESET}")
+        code_lines = []
+        first_line = input().strip()
+        if first_line and first_line.upper() != "EOF":
+            code_lines.append(first_line)
+            while True:
+                line = input()
+                if line.strip().upper() == "EOF":
+                    break
+                code_lines.append(line)
+
+        code_snippet = "\n".join(code_lines) if code_lines else ""
+        if code_snippet:
+            print(f"{GREEN}   ✓ Captured {len(code_lines)} lines of code{RESET}")
+
         # Sanitize filename
         safe_name = framework_name.lower().replace(" ", "_") # deploying_react -> deploy_react
         # Ensure deploy prefix uses underscore for filename convention
@@ -369,7 +386,8 @@ grade: [Grade]
         new_content = new_content.replace("[Pros List]", pros_list)
         new_content = new_content.replace("[Cons List]", cons_list)
 
-        snippet = defaults.get("snippet", "")
+        # Inject captured code or use defaults
+        snippet = code_snippet or defaults.get("snippet", "")
         if snippet:
              new_content = new_content.replace("(Paste your code snippet here)", snippet)
 
@@ -382,28 +400,63 @@ grade: [Grade]
         with open(target_path, 'w') as f:
             f.write(new_content)
 
-        print(f"\n{GREEN}✅ Framework Harvested!{RESET}")
-        print(f"   Location: {target_path}")
-        print(f"   Action: Open this file and paste your code snippet.")
+        # === POST-HARVEST UX ENHANCEMENT ===
+        try:
+            from rich.console import Console
+            from rich.panel import Panel
+            from rich.prompt import Prompt
+            console = Console()
 
-        # Auto-open
-        print(f"\n{CYAN}? Open in editor now?{RESET}")
-        print(f"  [1] VS Code (default)")
-        print(f"  [2] Nano (terminal)")
-        print(f"  [n] No")
+            # Celebratory Panel with Next Steps
+            console.print(Panel.fit(
+                f"[bold green]✅ Framework '{framework_name}' Harvested![/bold green]\n\n"
+                f"[cyan]📋 NEXT STEPS:[/cyan]\n"
+                f"  1. Edit: [yellow]jcapy open {safe_name}[/yellow]\n"
+                f"  2. Test: [yellow]jcapy apply {safe_name} --dry-run[/yellow]\n"
+                f"  3. Save: [yellow]jcapy push[/yellow]",
+                title="🌾 Harvest Complete",
+                border_style="green"
+            ))
 
-        choice = input(f"{CYAN}Select [1]: {RESET}").strip().lower()
+            # Post-Harvest Continuation Menu
+            while True:
+                console.print("\n[bold cyan]What's next?[/bold cyan]")
+                console.print("  [1] Apply/Test this framework")
+                console.print("  [2] Push to repository")
+                console.print("  [3] Edit in VS Code")
+                console.print("  [4] Done - I'm finished")
 
-        if choice == '' or choice == '1':
-             if shutil.which('code'):
-                 subprocess.call(['code', target_path])
-             elif sys.platform == 'darwin':
-                 subprocess.call(['open', target_path])
-             else:
-                 print("VS Code not found in PATH. Trying nano...")
-                 subprocess.call(['nano', target_path])
-        elif choice == '2' or choice == 'nano':
-             subprocess.call(['nano', target_path])
+                choice = Prompt.ask("Select", choices=["1", "2", "3", "4"], default="4")
+
+                if choice == "1":
+                    console.print("\n[cyan]Running dry-run test...[/cyan]")
+                    apply_framework(safe_name, dry_run=True)
+                elif choice == "2":
+                    console.print("\n[cyan]Pushing to repository...[/cyan]")
+                    try:
+                        from jcapy.commands.sync import push_all_personas
+                        push_all_personas()
+                    except Exception as e:
+                        console.print(f"[red]Push failed: {e}[/red]")
+                elif choice == "3":
+                    if shutil.which('code'):
+                        subprocess.call(['code', target_path])
+                    elif sys.platform == 'darwin':
+                        subprocess.call(['open', target_path])
+                    console.print("[green]Opened in editor[/green]")
+                else:
+                    break
+
+            console.print("\n[dim]Happy building! 🚀[/dim]")
+
+        except ImportError:
+            # Fallback without Rich
+            print(f"\n{GREEN}✅ Framework Harvested!{RESET}")
+            print(f"   Location: {target_path}")
+            print(f"\n   Next steps:")
+            print(f"   1. Edit: jcapy open {safe_name}")
+            print(f"   2. Test: jcapy apply {safe_name} --dry-run")
+            print(f"   3. Save: jcapy push")
 
     except KeyboardInterrupt:
         print(f"\n{RED}Operation Cancelled.{RESET}")
