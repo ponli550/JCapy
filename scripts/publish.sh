@@ -10,13 +10,16 @@ set -e
 #   --dry-run    Preview all commands without executing
 #   --force      Skip confirmation prompts (use with caution)
 #
-# Security Features:
-# ✓ Dry-run mode for safe previewing
-# ✓ Confirmation prompts before destructive actions
-# ✓ Git status checks (clean working tree required)
-# ✓ Branch protection (main branch only)
-# ✓ Version validation (semver, no duplicates)
-# ✓ Credential verification (PyPI/GitHub)
+# Flow: Pip-First, Homebrew Opt-In
+#   Phase 0a: Virtual Environment Setup (upfront)
+#   Phase 0b: Security Checks (branch, clean tree, remote, version)
+#   Phase 0c: PyPI Credential Check (fail fast)
+#   Phase 1:  Pre-Commit Pending Changes
+#   Phase 2:  Version Bump
+#   Phase 3:  Tag & Push
+#   Phase 4:  PyPI Build & Upload (default path)
+#   Phase 5:  Homebrew Update (opt-in)
+#   Phase 6:  Summary
 # ============================================================================
 
 echo "🚀 jcapy Release Protocol (Secure Edition)"
@@ -95,26 +98,26 @@ success() {
 # PHASE 0a: Virtual Environment Setup
 # ==========================================
 
-setup_venv() {
-    if [ -z "$VIRTUAL_ENV" ]; then
-        echo ""
-        echo "🔧 Setting up virtual environment for PyPI build..."
+echo ""
+echo "🔧 Setting up virtual environment..."
 
-        if [ -d "venv" ]; then
-            source venv/bin/activate
-            echo "   ✔ Activated existing venv"
+if [ -z "$VIRTUAL_ENV" ]; then
+    if [ -d "venv" ]; then
+        source venv/bin/activate
+        echo "   ✔ Activated existing venv"
+    else
+        if $DRY_RUN; then
+            echo "   [DRY-RUN] Would create and configure venv"
         else
-            if $DRY_RUN; then
-                echo "   [DRY-RUN] Would create and configure venv"
-            else
-                python3 -m venv venv
-                source venv/bin/activate
-                pip install --quiet --upgrade pip build twine
-                echo "   ✔ Created and configured venv"
-            fi
+            python3 -m venv venv
+            source venv/bin/activate
+            pip install --quiet --upgrade pip build twine
+            echo "   ✔ Created and configured venv"
         fi
     fi
-}
+else
+    echo "   ✔ Virtual environment already active: $VIRTUAL_ENV"
+fi
 
 # ==========================================
 # PHASE 0b: SECURITY CHECKS
@@ -131,14 +134,9 @@ if [[ "$CURRENT_BRANCH" != "$ALLOWED_BRANCH" ]]; then
 fi
 success "Branch check passed: on '$ALLOWED_BRANCH'"
 
-# Check 2: Clean Working Tree (warn only, don't block)
+# Check 2: Clean Working Tree (warn only, don't block — pre-commit handles later)
 if [[ -n $(git status -s) ]]; then
-    warning "Uncommitted changes detected:"
-    git status -s
-    echo ""
-    if ! confirm "Continue with uncommitted changes?"; then
-        error_exit "Aborted due to uncommitted changes."
-    fi
+    warning "Uncommitted changes detected (will be handled in pre-commit phase)."
 else
     success "Working tree is clean"
 fi
@@ -166,12 +164,73 @@ fi
 
 echo ""
 echo "🔒 All security checks passed!"
+
+# ==========================================
+# PHASE 0c: PyPI Credential Check (Fail Fast)
+# ==========================================
+
 echo ""
+echo "🔐 Checking PyPI credentials..."
+
+HAS_PYPIRC=false
+HAS_ENV_TOKEN=false
+
+if [ -f ~/.pypirc ]; then
+    HAS_PYPIRC=true
+    echo "   ✔ Found ~/.pypirc"
+fi
+
+if [ -n "$TWINE_PASSWORD" ]; then
+    HAS_ENV_TOKEN=true
+    echo "   ✔ Found TWINE_PASSWORD"
+fi
+
+if ! $HAS_PYPIRC && ! $HAS_ENV_TOKEN; then
+    warning "No stored PyPI credentials found."
+    echo "   Options:"
+    echo "     1. Create ~/.pypirc with your API token"
+    echo "     2. Set TWINE_USERNAME=__token__ and TWINE_PASSWORD=<your-token>"
+    echo ""
+    if ! confirm "Continue anyway? (will prompt for token during upload)"; then
+        error_exit "Aborted — set up PyPI credentials first."
+    fi
+fi
 
 # ==========================================
-# PHASE 1: Version Bump
+# PHASE 1: Pre-Commit Pending Changes
 # ==========================================
 
+if [[ -n $(git status -s) ]]; then
+    echo ""
+    echo "📝 Pending changes detected:"
+    git status -s
+    echo ""
+
+    if confirm "Commit these changes before release?"; then
+        if $FORCE; then
+            COMMIT_MSG="Pre-release commit"
+        else
+            read -p "💬 Commit message: " COMMIT_MSG
+            if [[ -z "$COMMIT_MSG" ]]; then
+                COMMIT_MSG="Pre-release commit"
+            fi
+        fi
+
+        if $DRY_RUN; then
+            echo "   [DRY-RUN] Would commit: $COMMIT_MSG"
+        else
+            git add .
+            git commit -m "$COMMIT_MSG"
+            success "Changes committed."
+        fi
+    fi
+fi
+
+# ==========================================
+# PHASE 2: Version Bump
+# ==========================================
+
+echo ""
 echo "📦 Current Version: $CURRENT_VERSION"
 echo ""
 echo "Select Release Type:"
@@ -235,7 +294,7 @@ else
 fi
 
 # ==========================================
-# PHASE 2: Tag & Push
+# PHASE 3: Tag & Push
 # ==========================================
 
 echo ""
@@ -260,169 +319,120 @@ else
 fi
 
 # ==========================================
-# PHASE 3: Select Distribution Targets
+# PHASE 4: PyPI Build & Upload
 # ==========================================
 
 echo ""
-echo "Select Distribution Targets:"
-echo "  1) 🍺 Homebrew only"
-echo "  2) 🐍 PyPI only"
-echo "  3) 🚀 Both (Homebrew + PyPI)"
-echo "  0) Skip distribution (code release only)"
-read -p "Choice (0-3): " -n 1 -r
-echo
+echo "🐍 PyPI Build & Upload"
+echo "----------------------"
 
-DO_HOMEBREW=false
-DO_PYPI=false
+if $DRY_RUN; then
+    echo "   [DRY-RUN] Would clean dist/"
+    echo "   [DRY-RUN] Would install/upgrade build tools"
+    echo "   [DRY-RUN] Would build wheel + sdist"
+    echo "   [DRY-RUN] Would upload to PyPI"
+else
+    # Clean old builds
+    rm -rf dist/ build/ *.egg-info src/*.egg-info
 
-if [[ $REPLY == "1" ]]; then
-    DO_HOMEBREW=true
-elif [[ $REPLY == "2" ]]; then
-    DO_PYPI=true
-elif [[ $REPLY == "3" ]]; then
-    DO_HOMEBREW=true
-    DO_PYPI=true
-elif [[ $REPLY == "0" ]]; then
-    echo "⏭️  Skipping distribution."
+    # Ensure build tools are available
+    pip install --quiet --upgrade build twine
+
+    # Build
+    python3 -m build
+
+    echo "✅ Built:"
+    ls -la dist/
+
+    echo ""
+    echo "Select PyPI Target:"
+    echo "  1) TestPyPI (recommended for first release)"
+    echo "  2) Production PyPI"
+    echo "  0) Skip upload (build only)"
+    read -p "Choice (0-2): " -n 1 -r
+    echo
+
+    if [[ $REPLY == "0" ]]; then
+        echo "⏭️  Skipping upload (built packages saved in dist/)."
+    elif [[ $REPLY == "1" ]]; then
+        echo "🚀 Uploading to TestPyPI..."
+        python3 -m twine upload --repository testpypi dist/*
+        success "Uploaded to TestPyPI!"
+        echo "   Test: pip install --index-url https://test.pypi.org/simple/ --no-deps jcapy"
+    elif [[ $REPLY == "2" ]]; then
+        echo "🚀 Uploading to Production PyPI..."
+        python3 -m twine upload dist/*
+        success "Uploaded to PyPI!"
+        echo "   Install: pip install jcapy"
+    else
+        echo "⚠️  Invalid choice. Skipping upload."
+    fi
 fi
 
 # ==========================================
-# PHASE 4a: Homebrew Update
+# PHASE 5: Homebrew Update (Opt-In)
 # ==========================================
 
-if $DO_HOMEBREW; then
+echo ""
+if confirm "🍺 Also update Homebrew tap?"; then
     echo ""
     echo "🍺 Updating Homebrew Tap..."
 
-    if ! confirm "Update Homebrew tap to v$NEW_VERSION?"; then
-        warning "Skipping Homebrew update."
+    URL="https://github.com/$GITHUB_USER/$REPO_NAME/archive/refs/tags/v$NEW_VERSION.tar.gz"
+
+    if $DRY_RUN; then
+        echo "   [DRY-RUN] Would fetch tarball from $URL"
+        echo "   [DRY-RUN] Would update homebrew-JCapy formula"
     else
-        URL="https://github.com/$GITHUB_USER/$REPO_NAME/archive/refs/tags/v$NEW_VERSION.tar.gz"
+        echo "   Waiting for GitHub to generate tarball..."
+        sleep 5
 
-        if $DRY_RUN; then
-            echo "   [DRY-RUN] Would fetch tarball from $URL"
-            echo "   [DRY-RUN] Would update homebrew-JCapy formula"
-        else
-            echo "   Waiting for GitHub to generate tarball..."
-            sleep 5
+        SHA=$(curl -sL "$URL" | shasum -a 256 | cut -d ' ' -f 1)
+        echo "   SHA256: $SHA"
 
-            SHA=$(curl -sL "$URL" | shasum -a 256 | cut -d ' ' -f 1)
+        TAP_REPO="https://github.com/$GITHUB_USER/$HOMEBREW_TAP_REPO.git"
+        TEMP_DIR="/tmp/jcapy-homebrew-release-$(date +%s)"
+
+        git clone "$TAP_REPO" "$TEMP_DIR" 2>/dev/null || {
+            warning "Could not clone tap repo. Manual update required."
+            echo "   URL: $URL"
             echo "   SHA256: $SHA"
+        }
 
-            TAP_REPO="https://github.com/$GITHUB_USER/$HOMEBREW_TAP_REPO.git"
-            TEMP_DIR="/tmp/jcapy-homebrew-release-$(date +%s)"
-
-            git clone "$TAP_REPO" "$TEMP_DIR" 2>/dev/null || {
-                warning "Could not clone tap repo. Manual update required."
-                echo "   URL: $URL"
-                echo "   SHA256: $SHA"
-            }
-
-            if [ -d "$TEMP_DIR" ]; then
-                FORMULA_PATH="$TEMP_DIR/Formula/jcapy.rb"
-                if [ ! -f "$FORMULA_PATH" ]; then
-                    FORMULA_PATH="$TEMP_DIR/jcapy.rb"
-                fi
-
-                if [ -f "$FORMULA_PATH" ]; then
-                    echo "📝 Updating $FORMULA_PATH..."
-                    if [[ "$OSTYPE" == "darwin"* ]]; then
-                        sed -i '' "s|url \".*\"|url \"$URL\"|" "$FORMULA_PATH"
-                        sed -i '' "s|sha256 \".*\"|sha256 \"$SHA\"|" "$FORMULA_PATH"
-                    else
-                        sed -i "s|url \".*\"|url \"$URL\"|" "$FORMULA_PATH"
-                        sed -i "s|sha256 \".*\"|sha256 \"$SHA\"|" "$FORMULA_PATH"
-                    fi
-
-                    cd "$TEMP_DIR"
-                    git config user.email "jcapy-bot@ponli550.com"
-                    git config user.name "JCapy Release Bot"
-                    git add .
-                    git commit -m "Update jcapy to v$NEW_VERSION"
-                    git push origin main
-                    cd - > /dev/null
-
-                    success "Homebrew Tap Updated!"
-                fi
-
-                rm -rf "$TEMP_DIR"
+        if [ -d "$TEMP_DIR" ]; then
+            FORMULA_PATH="$TEMP_DIR/Formula/jcapy.rb"
+            if [ ! -f "$FORMULA_PATH" ]; then
+                FORMULA_PATH="$TEMP_DIR/jcapy.rb"
             fi
+
+            if [ -f "$FORMULA_PATH" ]; then
+                echo "📝 Updating $FORMULA_PATH..."
+                if [[ "$OSTYPE" == "darwin"* ]]; then
+                    sed -i '' "s|url \".*\"|url \"$URL\"|" "$FORMULA_PATH"
+                    sed -i '' "s|sha256 \".*\"|sha256 \"$SHA\"|" "$FORMULA_PATH"
+                else
+                    sed -i "s|url \".*\"|url \"$URL\"|" "$FORMULA_PATH"
+                    sed -i "s|sha256 \".*\"|sha256 \"$SHA\"|" "$FORMULA_PATH"
+                fi
+
+                cd "$TEMP_DIR"
+                git config user.email "jcapy-bot@ponli550.com"
+                git config user.name "JCapy Release Bot"
+                git add .
+                git commit -m "Update jcapy to v$NEW_VERSION"
+                git push origin main
+                cd - > /dev/null
+
+                success "Homebrew Tap Updated!"
+            fi
+
+            rm -rf "$TEMP_DIR"
         fi
     fi
 fi
 
 # ==========================================
-# PHASE 4b: PyPI Upload
-# ==========================================
-
-if $DO_PYPI; then
-    echo ""
-    echo "🐍 Preparing PyPI Upload..."
-
-    # Ensure venv is active
-    setup_venv
-
-    # Check PyPI credentials
-    echo ""
-    echo "🔐 Checking PyPI credentials..."
-    HAS_PYPIRC=false
-    HAS_ENV_TOKEN=false
-
-    if [ -f ~/.pypirc ]; then
-        HAS_PYPIRC=true
-        echo "   ✔ Found ~/.pypirc"
-    fi
-
-    if [ -n "$TWINE_PASSWORD" ]; then
-        HAS_ENV_TOKEN=true
-        echo "   ✔ Found TWINE_PASSWORD"
-    fi
-
-    if ! $HAS_PYPIRC && ! $HAS_ENV_TOKEN; then
-        warning "No stored PyPI credentials. Will prompt during upload."
-    fi
-
-    if ! confirm "Build and upload v$NEW_VERSION to PyPI?"; then
-        warning "Skipping PyPI upload."
-    else
-        if $DRY_RUN; then
-            echo "   [DRY-RUN] Would clean dist/"
-            echo "   [DRY-RUN] Would build wheel + sdist"
-            echo "   [DRY-RUN] Would upload to PyPI"
-        else
-            # Clean old builds
-            rm -rf dist/ build/ *.egg-info src/*.egg-info
-
-            # Build
-            python3 -m build
-
-            echo "✅ Built:"
-            ls -la dist/
-
-            echo ""
-            echo "Select PyPI Target:"
-            echo "  1) TestPyPI (recommended for first release)"
-            echo "  2) Production PyPI"
-            read -p "Choice (1-2): " -n 1 -r
-            echo
-
-            if [[ $REPLY == "1" ]]; then
-                echo "🚀 Uploading to TestPyPI..."
-                python3 -m twine upload --repository testpypi dist/*
-                success "Uploaded to TestPyPI!"
-                echo "   Test: pip install --index-url https://test.pypi.org/simple/ --no-deps jcapy"
-            elif [[ $REPLY == "2" ]]; then
-                echo "🚀 Uploading to Production PyPI..."
-                python3 -m twine upload dist/*
-                success "Uploaded to PyPI!"
-                echo "   Install: pip install jcapy"
-            fi
-        fi
-    fi
-fi
-
-# ==========================================
-# SUMMARY
+# PHASE 6: SUMMARY
 # ==========================================
 
 echo ""
@@ -430,12 +440,7 @@ echo "🎉 Release Complete!"
 echo "============================================"
 echo "  Version: v$NEW_VERSION"
 echo "  GitHub:  https://github.com/$GITHUB_USER/$REPO_NAME"
-if $DO_HOMEBREW; then
-    echo "  Homebrew: brew install $GITHUB_USER/jcapy/jcapy"
-fi
-if $DO_PYPI; then
-    echo "  PyPI: pip install jcapy"
-fi
+echo "  PyPI:    pip install jcapy"
 if $DRY_RUN; then
     echo ""
     echo "  ⚠️  This was a DRY-RUN. No changes were made."
