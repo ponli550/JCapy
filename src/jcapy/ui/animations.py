@@ -25,14 +25,14 @@ def play_audio(event):
 
         if mode == "voice":
             voices = {
-                "matrix_start": "Initiating J Capy.",
+                "matrix_start": "J-Capy",
                 # "logo_crystallize": "Crystallizing knowledge.",
-                "ready": "Welcome back $USER."
+                "ready": "Ready to work, sir."
             }
             text = voices.get(event, "")
             if text:
                 # Use macOS 'say' command
-                subprocess.Popen(['say', '-v', 'Samantha', text])
+                subprocess.Popen(['say', '-v', 'Daniel', text])
             return
 
         if mode == "custom":
@@ -104,6 +104,9 @@ def matrix_rain(duration=1.2, density=0.5):
     # Limit for performance
     cols = min(cols, 80)
     rows = min(rows, 20)
+
+    # logo_width = len(JCAPY_LOGO[0])
+    # padding = max(0, (cols - logo_width) // 2)
 
     # Initialize columns with random starting positions
     columns = [random.randint(-rows, 0) for _ in range(cols)]
@@ -260,11 +263,11 @@ def cinematic_intro():
 
         # Phase 2: Logo crystallization
         play_audio("logo_crystallize")
-        crystallize_logo(duration=0.4)
+        crystallize_logo(duration=0.6)
 
         # Phase 3: Tagline
         time.sleep(0.2)
-        typewriter(TAGLINE, delay=0.02)
+        typewriter(TAGLINE, delay=0.05)
 
         play_audio("ready")
 

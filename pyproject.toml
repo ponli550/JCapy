@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jcapy"
-version = "3.0.1"
+version = "3.1.0"
 description = "JCapy CLI - One-Army Orchestrator"
 authors = [{name = "Irfan Ali", email = "nazrijz336@gmail.com"}]
 requires-python = ">=3.11"
