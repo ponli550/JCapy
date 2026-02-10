@@ -34,15 +34,15 @@ def print_help():
         console = Console()
         app_update, framework_update = get_update_status()
 
-        # ASCII Logo (Rubik-style blocks)
-        logo = """
-[bold cyan]     ██  ██████  █████  ██████  ██    ██[/bold cyan]
-[bold blue]     ██ ██      ██   ██ ██   ██  ██  ██[/bold blue]
-[bold magenta]     ██ ██      ███████ ██████    ████[/bold magenta]
-[bold yellow]██   ██ ██      ██   ██ ██         ██[/bold yellow]
-[bold green] █████   ██████ ██   ██ ██         ██[/bold green]
-"""
-        console.print(logo)
+#         # ASCII Logo (Rubik-style blocks)
+#         logo = """
+# [bold cyan]     ██  ██████  █████  ██████  ██    ██[/bold cyan]
+# [bold blue]     ██ ██      ██   ██ ██   ██  ██  ██[/bold blue]
+# [bold magenta]     ██ ██      ███████ ██████    ████[/bold magenta]
+# [bold yellow]██   ██ ██      ██   ██ ██         ██[/bold yellow]
+# [bold green] █████   ██████ ██   ██ ██         ██[/bold green]
+# """
+#         console.print(logo)
 
         # Tagline
         console.print("[bold white]One-Army Orchestrator[/bold white] [dim]• Build Like a Team of Ten[/dim]")
@@ -177,6 +177,15 @@ def main():
 
             check_for_framework_updates()
             migrate_persona_libraries() # Auto-migrate
+
+            # Cinematic intro for main TUI
+            try:
+                from jcapy.ui.animations import cinematic_intro, should_animate
+                if should_animate():
+                    cinematic_intro()
+            except ImportError:
+                pass
+
             # Default Flow: Select Persona -> Launches TUI
             select_persona()
             return
@@ -265,6 +274,13 @@ def main():
                 tutorial.reset()
                 show_success("Tutorial progress reset")
             else:
+                # Cinematic intro for tutorial
+                try:
+                    from jcapy.ui.animations import cinematic_intro, should_animate
+                    if should_animate():
+                        cinematic_intro()
+                except ImportError:
+                    pass
                 tutorial.run_interactive()
         elif cmd == "config":
             action = getattr(args, 'action', 'list')

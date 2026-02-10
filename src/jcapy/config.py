@@ -122,6 +122,7 @@ UX_DEFAULTS = {
     "hints": True,
     "reduced_motion": False,
     "accessible": False,
+    "audio_mode": "muted",  # Options: muted, beeps, voice, custom
 }
 
 def get_ux_preference(key: str):
