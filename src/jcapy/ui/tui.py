@@ -13,6 +13,10 @@ try:
 except ImportError:
     HAS_RICH = False
 
+from jcapy.config import load_config, JCAPY_HOME, get_current_persona_name, get_active_library_path
+from jcapy.utils.git_lib import get_git_status
+import time # for mtime checks
+
 # Colors (initialized in run)
 COLOR_DEFAULT = 1
 COLOR_HIGHLIGHT = 2
@@ -62,6 +66,96 @@ def get_skills(library_path):
     # Sort by domain then name
     skills.sort(key=lambda x: (x['domain'], x['name']))
     return skills
+
+def draw_dashboard(stdscr, selected_idx, personas_data, recent_files):
+    stdscr.erase()
+    h, w = stdscr.getmaxyx()
+
+    # 1. Header
+    current_persona = get_current_persona_name().upper()
+    lib_path = get_active_library_path()
+
+    # Get Sync Status
+    last_sync, pending = get_git_status(lib_path)
+    sync_status = "✅" if pending == 0 else "🛠️"
+    sync_text = f"Last Sync: {last_sync if last_sync else 'Never'} | Pending: {pending} {sync_status}"
+
+    title_line1 = f" Who is operating right now? (Current: {current_persona}) "
+    title_line2 = f" ↳ {sync_text} "
+
+    try:
+        # Line 1: Persona
+        stdscr.attron(curses.color_pair(COLOR_TITLE) | curses.A_BOLD)
+        stdscr.addstr(1, (w - len(title_line1)) // 2, title_line1)
+        stdscr.attroff(curses.color_pair(COLOR_TITLE) | curses.A_BOLD)
+
+        # Line 2: Sync Status (Dimmer/Subtitle Color)
+        stdscr.attron(curses.color_pair(COLOR_SUBTITLE))
+        stdscr.addstr(2, (w - len(title_line2)) // 2, title_line2)
+        stdscr.attroff(curses.color_pair(COLOR_SUBTITLE))
+
+    except curses.error: pass
+
+    # 2. Personas Columns (Kanban)
+    # Calculate column width based on nuumber of personas (max 3-4 visible?)
+    # For now, let's list them horizontally with status
+    y_start = 4
+    col_width = 25
+    margin = 2
+
+    current_x = margin
+
+    for idx, p in enumerate(personas_data):
+        if current_x + col_width > w: break
+
+        name = p['name'].capitalize()
+        if p['name'] == 'programmer': name = "Programmer"
+
+        # Highlight if selected
+        is_selected = (idx == selected_idx)
+        attr = curses.color_pair(COLOR_HIGHLIGHT) if is_selected else curses.color_pair(COLOR_DEFAULT) | curses.A_BOLD
+
+        try:
+            # Column Box
+            stdscr.addstr(y_start, current_x, f"┌{'─'*(col_width-2)}┐", attr)
+            stdscr.addstr(y_start+1, current_x, f"│ {name:<{col_width-4}} │", attr)
+            stdscr.addstr(y_start+2, current_x, f"├{'─'*(col_width-2)}┤", attr)
+
+            # Stats
+            stats = f"{p['count']} files"
+            stdscr.addstr(y_start+3, current_x, f"│ {stats:<{col_width-4}} │", attr)
+
+            # Status (Mock for speed, or real if passed)
+            status = "Online"
+            stdscr.addstr(y_start+4, current_x, f"│ {status:<{col_width-4}} │", attr)
+
+            stdscr.addstr(y_start+5, current_x, f"└{'─'*(col_width-2)}┘", attr)
+        except curses.error: pass
+
+        current_x += col_width + margin
+
+    # 3. Recent Activity Section
+    recent_y = y_start + 7
+    try:
+        stdscr.addstr(recent_y, 2, " RECENT ACTIVITY (Harvests/Edits) ", curses.color_pair(COLOR_SUBTITLE))
+        stdscr.hline(recent_y + 1, 2, curses.ACS_HLINE, w - 4)
+    except curses.error: pass
+
+    for i, file_info in enumerate(recent_files[:h - recent_y - 4]):
+        name = file_info['name']
+        ago = file_info['ago']
+        line = f" • {name:<30} {ago}"
+        try:
+            stdscr.addstr(recent_y + 2 + i, 4, line)
+        except curses.error: pass
+
+    # 4. Footer
+    footer = " Nav: LEFT/RIGHT | Select: ENTER | Toggle View: T | Quit: Q "
+    try:
+        stdscr.addstr(h - 1, 0, footer.center(w)[:w-1], curses.color_pair(COLOR_SUBTITLE))
+    except curses.error: pass
+
+    stdscr.refresh()
 
 def draw_dual_pane(stdscr, selected_idx, skills, filter_text):
     stdscr.erase()
@@ -279,7 +373,7 @@ def edit_in_terminal(stdscr, path):
     curses.reset_prog_mode()
     curses.doupdate()
 
-def main(stdscr, library_path):
+def main(stdscr, initial_library_path):
     # Setup Colors
     curses.start_color()
     curses.use_default_colors()
@@ -290,58 +384,137 @@ def main(stdscr, library_path):
 
     curses.curs_set(0) # Hide cursor
 
+    # State
+    current_library_path = initial_library_path
+    view_mode = "dashboard" # Start on dashboard
+
+    # Dashboard State
+    dash_idx = 0
+    p_stats = []
+    recent_files = []
+
+    # List State
     filter_text = ""
-    current_row = 0
+    list_row = 0
+
+    # Load Config & Personas
+    config = load_config()
+    personas = config.get("personas", {})
+    if "programmer" not in personas:
+         # Need default handling if config is bare
+         from jcapy.config import DEFAULT_LIBRARY_PATH
+         personas["programmer"] = {"path": DEFAULT_LIBRARY_PATH}
+
+    # Helper to refresh dashboard data
+    def refresh_dashboard_data():
+        stats = []
+        recent = []
+        for name in sorted(personas.keys()):
+            data = personas[name]
+            p_path = data.get("path")
+            count = 0
+            if p_path and os.path.exists(p_path):
+                for root, dirs, files in os.walk(p_path):
+                    # Filter hidden dirs
+                    dirs[:] = [d for d in dirs if not d.startswith('.')]
+                    for f in files:
+                        if f.endswith(".md"):
+                            count += 1
+                            mtime = os.path.getmtime(os.path.join(root, f))
+                            if time.time() - mtime < 86400 * 7: # 7 days
+                                # Format time ago
+                                diff = time.time() - mtime
+                                if diff < 3600: ago = f"{int(diff//60)}m ago"
+                                elif diff < 86400: ago = f"{int(diff//3600)}h ago"
+                                else: ago = f"{int(diff//86400)}d ago"
+
+                                recent.append({"name": f, "ago": ago, "mtime": mtime, "persona": name})
+            stats.append({"name": name, "count": count})
+
+        recent.sort(key=lambda x: x['mtime'], reverse=True)
+        return stats, recent
+
+    # Initial Load
+    p_stats, recent_files = refresh_dashboard_data()
+
+    # Find initial dash_idx based on current library
+    for i, p in enumerate(p_stats):
+        if personas[p['name']].get('path') == initial_library_path:
+            dash_idx = i
+            break
 
     while True:
-        # Get all skills and filter them based on user input
-        all_skills = get_skills(library_path)
-        skills = [s for s in all_skills if filter_text.lower() in s['name'].lower()]
+        if view_mode == "dashboard":
+            draw_dashboard(stdscr, dash_idx, p_stats, recent_files)
 
-        # Bound selection
-        if skills:
-            current_row = max(0, min(current_row, len(skills) - 1))
+            key = stdscr.getch()
 
-        # Call the new Dual Pane Drawer
-        draw_dual_pane(stdscr, current_row, skills, filter_text)
+            if key == curses.KEY_LEFT and dash_idx > 0:
+                dash_idx -= 1
+            elif key == curses.KEY_RIGHT and dash_idx < len(p_stats) - 1:
+                dash_idx += 1
+            elif key in [10, 13]: # Enter -> Switch to list view for selected persona
+                selected_p_name = p_stats[dash_idx]['name']
+                current_library_path = personas[selected_p_name]['path']
+                view_mode = "list"
+                # Update global config for persistence?
+                # For now just switch view context locally
+            elif key in [ord('t'), ord('T')]:
+                view_mode = "list"
+            elif key in [ord('q'), ord('Q')]:
+                break
 
-        key = stdscr.getch()
+        elif view_mode == "list":
+            # List View Logic
+            all_skills = get_skills(current_library_path)
+            skills = [s for s in all_skills if filter_text.lower() in s['name'].lower()]
 
-        if key == curses.KEY_UP and current_row > 0:
-            current_row -= 1
-        elif key == curses.KEY_DOWN and current_row < len(skills) - 1:
-            current_row += 1
-        elif key == ord('q') and not filter_text:
-            break
-        elif key == 27: # ESC
-            filter_text = ""
-        elif key in [8, 127, curses.KEY_BACKSPACE]:
-            filter_text = filter_text[:-1]
-        elif key in [ord('E'), ord('e')]:
+            # Bound selection
             if skills:
-                 edit_in_terminal(stdscr, skills[current_row]['path'])
-        elif 32 <= key <= 126 and key not in [ord('R'), ord('r'), ord('L'), ord('l')]:
-            # Reserve R/L for shortcuts
-            filter_text += chr(key)
-        elif key in [ord('R'), ord('r')]:
-            if skills:
-                run_associated_script(stdscr, skills[current_row], library_path)
-        elif key in [ord('L'), ord('l')]:
-            if skills:
-                 skill = skills[current_row]
-                 toggle_lock(skill['path'])
-                 # Status update implicit on next loop refresh
-        elif key in [10, 13]: # Enter
-            if skills:
-                result = action_menu(stdscr, skills[current_row], library_path)
-                if result == "refresh":
-                    pass
+                list_row = max(0, min(list_row, len(skills) - 1))
+            else:
+                list_row = 0
+
+            draw_dual_pane(stdscr, list_row, skills, filter_text)
+
+            key = stdscr.getch()
+
+            if key == curses.KEY_UP and list_row > 0:
+                list_row -= 1
+            elif key == curses.KEY_DOWN and list_row < len(skills) - 1:
+                list_row += 1
+            elif key == ord('q') and not filter_text:
+                if view_mode == "list":
+                    view_mode = "dashboard" # Back to dashboard instead of quit
+                else:
+                    break
+            elif key == 27: # ESC
+                if filter_text: filter_text = ""
+                else: view_mode = "dashboard"
+            elif key in [8, 127, curses.KEY_BACKSPACE]:
+                filter_text = filter_text[:-1]
+            elif key in [ord('E'), ord('e')]:
+                if skills: edit_in_terminal(stdscr, skills[list_row]['path'])
+            elif key in [ord('t'), ord('T')]:
+                view_mode = "dashboard"
+            elif 32 <= key <= 126 and key not in [ord('R'), ord('r'), ord('L'), ord('l')]:
+                filter_text += chr(key)
+            elif key in [ord('R'), ord('r')]:
+                if skills: run_associated_script(stdscr, skills[list_row], current_library_path)
+            elif key in [ord('L'), ord('l')]:
+                if skills: toggle_lock(skills[list_row]['path'])
+            elif key in [10, 13]: # Enter
+                if skills:
+                    result = action_menu(stdscr, skills[list_row], current_library_path)
+                    if result == "refresh": pass
 
 def run(library_path):
     try:
         curses.wrapper(main, library_path)
     except Exception as e:
         print(f"Error in TUI: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     # Test path logic if run directly

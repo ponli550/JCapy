@@ -101,9 +101,9 @@ def matrix_rain(duration=1.2, density=0.5):
         return
 
     cols, rows = get_terminal_size()
-    # Limit for performance
-    cols = min(cols, 80)
-    rows = min(rows, 20)
+    # Limit for performance - REMOVED for full screen effect as per user request
+    # cols = min(cols, 80)
+    # rows = min(rows, 20)
 
     # logo_width = len(JCAPY_LOGO[0])
     # padding = max(0, (cols - logo_width) // 2)

@@ -117,26 +117,43 @@ def select_persona():
     # Avoid circular import for git checks if possible, or lazy import
     from jcapy.utils.git_lib import get_git_status
 
+    # header
+    header = f"{BOLD}{'PERSONA':<20} {'STATUS':<15} {'LAST SYNC':<20}{RESET}"
+    print(f"  {header}")
+
     for p in persona_keys:
         p_data = config["personas"].get(p, {})
         p_path = p_data.get("path", DEFAULT_LIBRARY_PATH)
-        lock_status = " 🔒" if p_data.get("locked") else ""
+        lock_status = "🔒 Locked" if p_data.get("locked") else ""
 
         # Get Git Status
         last_sync, pending = get_git_status(p_path)
 
         display_name = p.capitalize()
-        if p == "programmer": display_name += " (One-Army Protocol)"
+        if p == "programmer": display_name = "Programmer" # Shorten for table
 
-        option_str = f"{display_name}{lock_status}"
-        if last_sync:
-             status_icon = "✅" if pending == 0 else "🛠️"
-             option_str += f"\n    ↳ {GREY}Last Sync: {last_sync} | Pending: {pending} {status_icon}{RESET}"
+        # Status Column
+        status_col = ""
+        if pending > 0:
+            status_col = f"🛠️  {pending} Pending"
+        elif last_sync:
+            status_col = "✅ Synced"
+        else:
+            status_col = "Unknown"
 
+        if lock_status:
+            status_col = f"{lock_status} {status_col}"
+
+        # Sync Column
+        sync_col = last_sync if last_sync else "-"
+
+        # Format Row
+        # Name (20) | Status (15) | Sync (20)
+        option_str = f"{display_name:<20} {status_col:<15} {sync_col:<20}"
         menu_options.append(option_str)
 
     # 2. Add Shortcuts
-    menu_options.append("Manage Personas")
+    menu_options.append(f"{'Manage Personas':<20}")
 
     # 3. Determine Default Index
     default_idx = 0
@@ -409,6 +426,44 @@ def delete_persona():
         print(f"{YELLOW}Deletion aborted. Confirmation name didn't match.{RESET}")
 
     time.sleep(1)
+
+    time.sleep(1)
+
+def setup_initial_persona():
+    """First-time setup: Ask for user name and create admin persona."""
+    print(f"\n{CYAN}Who is operating right now?{RESET}")
+    name = input(f"Enter your name (e.g. 'Irfan'): ").strip()
+
+    if not name:
+        name = "User"
+
+    safe_name = re.sub(r'[^a-z0-9_]', '', name.lower())
+    if not safe_name: safe_name = "user"
+
+    # Create library
+    lib_dir = f"library_{safe_name}"
+    lib_path = os.path.join(JCAPY_HOME, lib_dir)
+
+    if not os.path.exists(lib_path):
+        os.makedirs(lib_path, exist_ok=True)
+        os.makedirs(os.path.join(lib_path, "skills"), exist_ok=True)
+        os.makedirs(os.path.join(lib_path, "scripts"), exist_ok=True)
+
+    config = load_config()
+    if "personas" not in config: config["personas"] = {}
+
+    config["personas"][safe_name] = {
+        "path": lib_path,
+        "created_at": str(time.time()),
+        "locked": False
+    }
+
+    config["current_persona"] = safe_name
+    save_config(config)
+
+    print(f"\n{GREEN}✔ Nice to meet you, {name}! Admin access granted.{RESET}")
+    time.sleep(1)
+    return safe_name
 
 # ==========================================
 # BRAINSTORMING (AI) LOGIC

@@ -28,21 +28,44 @@ def interactive_menu(prompt, options, default_index=0, return_char=False):
     """Renders an interactive menu handling arrow keys. Supports shortcuts."""
     current_row = default_index
 
+    # Inverse Video for selection
+    REVERSE = '\033[7m'
+
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
-        print(f"\n{CYAN}{prompt}{RESET}")
+
+        # Add a breathing room line if requested (or just default)
+        print()
+        print(f"{CYAN}{prompt}{RESET}")
         print("-----------------------------------------------------")
 
         for idx, option in enumerate(options):
             if idx == current_row:
-                print(f"{GREEN}> {option}{RESET}")
+                # Reverse Video Selection
+                print(f"{REVERSE} {option} {RESET}")
             else:
                 print(f"  {option}")
 
         print("-----------------------------------------------------")
-        print(f"{GREY}Use UP/DOWN arrows to navigate, ENTER to select.{RESET}")
+
+        # Footer / Status Bar
         if return_char:
-             print(f"{GREY}[C] Code | [S] Sync All | [P] Push Brain{RESET}")
+            # Button-like badges
+            btn_c = f"{REVERSE} [C] Code {RESET}"
+            btn_s = f"{REVERSE} [S] Sync All {RESET}"
+            btn_p = f"{REVERSE} [P] Push Brain {RESET}"
+
+            # Solid background footer
+            footer_text = f" Use UP/DOWN to navigate, ENTER to select.  {btn_c} {btn_s} {btn_p} "
+            # Use a background color for the whole line if possible, or just the text
+            # For now, let's keep it simple with the badges, or usage of REVERSE for the whole bar if desired.
+            # User asked for: "Use a solid background color (e.g., dark blue or grey) for the footer row"
+            # Let's use GREY background if possible, or just REVERSE for the whole line.
+            # \033[100m is bright black background (greyish)
+            BG_GREY = '\033[100m'
+            print(f"{BG_GREY}{WHITE}{footer_text:<80}{RESET}")
+        else:
+            print(f"{GREY}Use UP/DOWN arrows to navigate, ENTER to select.{RESET}")
 
         key = get_key()
 

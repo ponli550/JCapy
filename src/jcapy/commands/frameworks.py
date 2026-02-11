@@ -53,14 +53,25 @@ def list_frameworks():
             print(f"{GREY}{indent}📂 {folder_name}/{RESET}")
 
         for f in files:
-            if f.endswith(".md") and f != "TEMPLATE_FRAMEWORK.md":
-                path = os.path.join(root, f)
-                mtime = os.path.getmtime(path)
-                is_recent = (time.time() - mtime) < 86400 # 24 hours
-                tag = f" {YELLOW}(RECENT){RESET}" if is_recent else ""
+            # Skip system files and templates
+            if f in [".DS_Store", "TEMPLATE_FRAMEWORK.md", "README.md"] or f.startswith("."):
+                continue
 
-                print(f"{GREEN}{subindent}📜 {f}{tag}{RESET}")
-                frameworks_count += 1
+            path = os.path.join(root, f)
+            mtime = os.path.getmtime(path)
+            is_recent = (time.time() - mtime) < 86400 # 24 hours
+            tag = f" {YELLOW}(RECENT){RESET}" if is_recent else ""
+
+            # Icons based on extension
+            icon = "📄"
+            if f.endswith(".md"): icon = "📜"
+            elif f.endswith(".py"): icon = "🐍"
+            elif f.endswith(".sh"): icon = "🐚"
+            elif f.endswith(".json") or f.endswith(".yaml") or f.endswith(".yml"): icon = "⚙️ "
+            elif f.endswith(".txt"): icon = "📝"
+
+            print(f"{GREEN}{subindent}{icon} {f}{tag}{RESET}")
+            frameworks_count += 1
 
     if frameworks_count == 0:
         print(f"   {GREY}(No frameworks harvested yet. Use 'jcapy harvest'){RESET}")
@@ -338,22 +349,38 @@ grade: [Grade]
         def_cons = defaults.get("cons", "")
         cons_input = input(f"{CYAN}? Cons (comma separated) [{def_cons}]: {RESET}").strip() or def_cons
 
-        # NEW: Inline Code Capture
+        # NEW: Inline Code Capture with Loop
         print(f"\n{CYAN}? Paste executable code (type 'EOF' on new line when done, or press Enter to skip):{RESET}")
         print(f"{GREY}  This will be injected into the <!-- jcapy:EXEC --> block{RESET}")
-        code_lines = []
-        first_line = input().strip()
-        if first_line and first_line.upper() != "EOF":
-            code_lines.append(first_line)
-            while True:
-                line = input()
-                if line.strip().upper() == "EOF":
-                    break
-                code_lines.append(line)
 
-        code_snippet = "\n".join(code_lines) if code_lines else ""
+        all_code_blocks = []
+
+        while True:
+            code_lines = []
+            print(f"{CYAN}--- Begin Block ---{RESET}")
+
+            first_line = input().strip()
+            if first_line and first_line.upper() != "EOF":
+                code_lines.append(first_line)
+                while True:
+                    line = input()
+                    if line.strip().upper() == "EOF":
+                        break
+                    code_lines.append(line)
+
+            if code_lines:
+                block_content = "\n".join(code_lines)
+                all_code_blocks.append(block_content)
+                print(f"{GREEN}   ✓ Captured block with {len(code_lines)} lines{RESET}")
+
+            # Ask for another block
+            more = input(f"{CYAN}? Add another code block? (y/N): {RESET}").strip().lower()
+            if more != 'y':
+                break
+
+        code_snippet = "\n\n".join(all_code_blocks) if all_code_blocks else ""
         if code_snippet:
-            print(f"{GREEN}   ✓ Captured {len(code_lines)} lines of code{RESET}")
+            print(f"{GREEN}   ✓ Total {len(all_code_blocks)} blocks captured{RESET}")
 
         # Sanitize filename
         safe_name = framework_name.lower().replace(" ", "_") # deploying_react -> deploy_react

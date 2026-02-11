@@ -150,6 +150,9 @@ def main():
     # Brainstorm Command
     subparsers.add_parser("brainstorm", aliases=["bs"], help="AI Refactor & Optimization")
 
+    # Suggest Command
+    subparsers.add_parser("suggest", help="Recommend next best actions")
+
     # Help Command
     subparsers.add_parser("help", help="Show help message")
 
@@ -173,21 +176,43 @@ def main():
             global_config = os.path.expanduser("~/.jcapyrc")
             # If completely new user
             if not os.path.exists(config_path) and not os.path.exists(global_config):
-                show_welcome()
+                # 1. Animations: Matrix Rain + Crystallizing Logo
+                try:
+                    from jcapy.ui.animations import cinematic_intro, should_animate, typewriter_print
+                    if should_animate():
+                        cinematic_intro()
+                        print("\n")
+                        typewriter_print(f"{CYAN}Welcome to JCapy.{RESET}", speed=0.08)
+                        time.sleep(0.5)
+                        typewriter_print(f"{GREY}Your personal AI Architect.{RESET}", speed=0.05)
+                        time.sleep(1)
+                except ImportError:
+                    pass
+
+                # 2. Admin Setup: "Who is operating right now?"
+                from jcapy.commands.brain import setup_initial_persona
+                setup_initial_persona()
+
+                # 3. Tutorial: Interactive Guide
+                tutorial = get_tutorial()
+                tutorial.run_interactive()
+
+            else:
+                 # Standard Intro for returning users
+                 try:
+                    from jcapy.ui.animations import cinematic_intro, should_animate
+                    if should_animate():
+                        cinematic_intro()
+                 except ImportError:
+                    pass
 
             check_for_framework_updates()
             migrate_persona_libraries() # Auto-migrate
 
-            # Cinematic intro for main TUI
-            try:
-                from jcapy.ui.animations import cinematic_intro, should_animate
-                if should_animate():
-                    cinematic_intro()
-            except ImportError:
-                pass
-
-            # Default Flow: Select Persona -> Launches TUI
-            select_persona()
+            # Default Flow: Dashboard directly (User Request)
+            # select_persona() <--- Skipped in favor of valid dashboard
+            from jcapy.ui.tui import run as run_tui
+            run_tui(get_active_library_path())
             return
 
         # Handle custom version flag
@@ -249,6 +274,36 @@ def main():
             push_all_personas()
         elif cmd == "apply":
             apply_framework(args.name, args.dry_run)
+        elif cmd == "suggest":
+            # Suggestion Logic
+            print(f"{CYAN}🤖 jcapy Recommendations:{RESET}")
+            lib_path = get_active_library_path()
+
+            # 1. Harvest Check
+            has_files = False
+            for r, d, f in os.walk(lib_path):
+                if any(k.endswith('.md') for k in f):
+                    has_files = True
+                    break
+
+            if not has_files:
+                print(f"  • {GREEN}jcapy harvest{RESET}: Start building your knowledge base.")
+                print(f"  • {GREEN}jcapy init{RESET}: Create a new project structure.")
+            else:
+                # 2. Sync Check
+                try:
+                    from jcapy.utils.git_lib import get_git_status
+                    _, pending = get_git_status(lib_path)
+                    if pending > 0:
+                        print(f"  • {GREEN}jcapy push{RESET}: You have {pending} uncommitted changes.")
+                except: pass
+
+                print(f"  • {GREEN}jcapy list{RESET}: Browse your library.")
+                print(f"  • {GREEN}jcapy manage{RESET}: Open the Dashboard.")
+
+            # General
+            print(f"  • {GREEN}jcapy doctor{RESET}: Verify system health.")
+
         elif cmd == "help":
             check_for_framework_updates()
             print_help()

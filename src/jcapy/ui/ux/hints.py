@@ -105,8 +105,13 @@ class Tutorial:
             "action": "persona"
         },
         {
+            "id": "suggest",
+            "message": "Get AI recommendations: jcapy suggest",
+            "action": "suggest"
+        },
+        {
             "id": "complete",
-            "message": "🎉 You're all set! Run 'jcapy help' for more commands.",
+            "message": "🎉 You're all set! Loading Dashboard...",
             "action": None
         }
     ]
