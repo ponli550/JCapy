@@ -71,11 +71,17 @@ def check_system(full_scan=True):
         # Retaining original logic:
         results["all_passed"] = False
 
-    # 3. Check Integrations (Links)
     results["integrations"]["Vercel Linked"] = os.path.exists(os.path.join(cwd, ".vercel"))
     results["integrations"]["Supabase Linked"] = os.path.exists(os.path.join(cwd, "supabase", "config.toml")) or os.path.exists(os.path.join(cwd, "supabase", "config.json"))
 
-    # 4. Check Blueprint (Merge) - simplified local config load
+    # 4. Check AI Keys
+    results["ai_keys"] = {}
+    from jcapy.config import get_api_key
+    for p in ["gemini", "openai", "deepseek"]:
+        key = get_api_key(p)
+        results["ai_keys"][p] = True if key else False
+
+    # 5. Check Blueprint (Merge) - simplified local config load
     config_data = {}
     if results["config"][".jcapyrc"]:
         try:
@@ -159,6 +165,18 @@ def run_doctor():
         icon = "[green]✔[/green]" if passed else "[yellow]![/yellow]"
         msg = f"[dim]Linked[/dim]" if passed else "[yellow]Not Linked[/yellow]"
         table.add_row(f"  {integ}", f"{icon}  {msg}")
+    console.print(table)
+
+    # AI Keys Table
+    table = Table(show_header=False, box=None)
+    table.add_column("Item", width=15)
+    table.add_column("Status")
+
+    console.print("\n[bold]🤖 AI Agentic Keys[/bold]")
+    for provider, passed in results.get("ai_keys", {}).items():
+        icon = "[green]✔[/green]" if passed else "[red]![/red]"
+        msg = f"[dim]Configured[/dim]" if passed else "[red]Missing[/red]"
+        table.add_row(f"  {provider.capitalize()}", f"{icon}  {msg}")
     console.print(table)
 
     # Personas Integrity Check (The Main Event for Refactor)

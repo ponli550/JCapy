@@ -10,6 +10,7 @@ authors = [{name = "Irfan Ali", email = "nazrijz336@gmail.com"}]
 requires-python = ">=3.11"
 dependencies = [
     "rich>=13.0.0",
+    "mcp>=1.2.0",
 ]
 
 [project.scripts]

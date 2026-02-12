@@ -64,9 +64,15 @@ def check_system(full_scan=True):
 
     if not results["config"][".jcapyrc"]: results["all_passed"] = False
 
-    # 3. Check Integrations
     results["integrations"]["Vercel Linked"] = os.path.exists(os.path.join(cwd, ".vercel"))
     results["integrations"]["Supabase Linked"] = os.path.exists(os.path.join(cwd, "supabase", "config.toml")) or os.path.exists(os.path.join(cwd, "supabase", "config.json"))
+
+    # 4. Check AI Keys
+    results["ai_keys"] = {}
+    from jcapy.config import get_api_key
+    for p in ["gemini", "openai", "deepseek"]:
+        key = get_api_key(p)
+        results["ai_keys"][p] = True if key else False
 
     return results
 
@@ -297,3 +303,82 @@ def deploy_project():
 
     except ImportError:
         print("Rich not installed.")
+
+from jcapy.utils.ai import call_ai_agent
+
+def map_project_patterns(path='.', provider='gemini'):
+    """Analyzes the project and suggests patterns to harvest."""
+    # ANSI Colors (Local safety)
+    CYAN = '\033[1;36m'
+    GREEN = '\033[1;32m'
+    GREY = '\033[0;90m'
+    YELLOW = '\033[1;33m'
+    RED = '\033[1;31m'
+    RESET = '\033[0m'
+    MAGENTA = '\033[1;35m'
+
+    print(f"{CYAN}🗺️  Mapping Project Patterns in {RESET}{os.path.abspath(path)}...")
+
+    # 1. Collect Context
+    context_files = []
+    for root, dirs, files in os.walk(path):
+        dirs[:] = [d for d in dirs if d not in ['.git', 'node_modules', '__pycache__', '.venv', '.jcapy']]
+        for f in files:
+            if f.endswith(('.py', '.js', '.ts', '.sh', '.lua', '.md')):
+                context_files.append(os.path.join(root, f))
+                if len(context_files) > 30: break
+        if len(context_files) > 30: break
+
+    # 2. Extract snippets
+    context_text = ""
+    for f_path in context_files:
+        try:
+            with open(f_path, 'r') as f:
+                header = f.read(1000) # Deeper read
+                context_text += f"\n--- FILE: {f_path} ---\n{header}\n"
+        except:
+            pass
+
+    # 3. Prepare Prompt
+    prompt = f"""
+You are the **jcapy Project Cartographer**. Analyze the provided code context and identify 5 high-value patterns, utilities, or architectural decisions that fit the "One-Army" philosophy.
+
+### Goal:
+Extract reusable "Skills" that enable a single developer to manage complex systems.
+
+### Output Requirements:
+Return a Markdown document with:
+1. **Title**: Name of the pattern.
+2. **Category**: (ui, backend, devops, logic)
+3. **Rationale**: Why this is a "One-Army" win.
+4. **Source**: The exact file path.
+
+--- PROJECT CONTEXT ---
+{context_text}
+"""
+
+    # 4. Handle Execution (Level 3.0)
+    print(f"{YELLOW}📡 Sending to {provider.upper()} for analysis...{RESET}")
+    result, err = call_ai_agent(prompt, provider)
+
+    if result:
+        out_file = "jcapy_proposals.md"
+        with open(out_file, 'w') as f:
+            f.write(f"# JCapy Library Proposals\n> Generated on {datetime.now()}\n\n" + result)
+
+        print(f"\n{GREEN}✨ Project Map Complete!{RESET}")
+        print(f"{MAGENTA}Proposals saved to:{RESET} {out_file}")
+
+        if shutil.which('code'):
+            subprocess.call(['code', out_file])
+    else:
+        print(f"{RED}AI Error: {err}{RESET}")
+        print(f"{YELLOW}Falling back to Local Prompt Dump...{RESET}")
+
+        out_file = "project_map.prompt.txt"
+        with open(out_file, 'w') as f:
+            f.write(prompt)
+        print(f"\n{GREEN}🗺️  Project Map Prompt generated:{RESET} {out_file}")
+
+        if shutil.which('code'):
+            subprocess.call(['code', out_file])

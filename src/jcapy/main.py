@@ -6,8 +6,10 @@ from jcapy.utils.updates import check_for_framework_updates, get_update_status, 
 from jcapy.commands.frameworks import list_frameworks, harvest_framework, search_frameworks, open_framework, delete_framework, merge_frameworks, apply_framework
 from jcapy.commands.brain import select_persona, open_brain_vscode, run_brainstorm_wizard, migrate_persona_libraries
 from jcapy.commands.sync import sync_all_personas, push_all_personas
-from jcapy.commands.project import init_project, deploy_project
+from jcapy.commands.project import init_project, deploy_project, map_project_patterns
 from jcapy.commands.doctor import run_doctor
+from jcapy.commands.edit import rapid_fix
+from jcapy.commands.research import autonomous_explore
 from jcapy.ui.ux.safety import get_undo_stack
 from jcapy.ui.ux.hints import prompt_typo_correction, get_tutorial, JCAPY_COMMANDS
 from jcapy.ui.ux.feedback import show_success, show_error
@@ -57,32 +59,8 @@ def print_help():
         if framework_update:
             console.print("[bold yellow]🌟 New framework updates available! Run 'jcapy sync' to upgrade your knowledge.[/bold yellow]")
 
-        table = Table(show_header=True, header_style="bold magenta", box=None)
-        table.add_column("Command", style="cyan", width=12)
-        table.add_column("Alias", style="yellow", width=8)
-        table.add_column("Description", style="white")
-
-        table.add_row("manage", "tui", "Interactive Command Center [bold](Default)[/bold]")
-        table.add_row("harvest", "new", "Wizard to extract new frameworks")
-        table.add_row("list", "ls", "List all knowledge base frameworks")
-        table.add_row("apply", "", "Deploy Framework (Executable Knowledge)")
-        table.add_row("deploy", "", "Deploy pipeline (Grade-Aware)")
-        table.add_row("search", "", "Fuzzy search by content")
-        table.add_row("open", "", "Open framework in VS Code")
-        table.add_row("delete", "rm", "Delete a framework")
-        table.add_row("doctor", "chk", "Check system health")
-        table.add_row("persona", "p", "Switch Persona")
-        table.add_row("sync", "", "Update Framework Library (Git Sync)")
-        table.add_row("push", "", "Upload Local Changes (Git Push)")
-        table.add_row("brainstorm", "bs", "AI Refactor & Optimization")
-        table.add_row("merge", "", "Create a Blueprint (Frontend + Backend)")
-        table.add_row("init", "", "Scaffold new project structure")
-        table.add_row("undo", "", "Undo last destructive action")
-        table.add_row("tutorial", "", "Interactive onboarding guide")
-        table.add_row("config", "", "Set preferences (theme, hints)")
-        table.add_row("help", "", "Show this help screen")
-
-        console.print(table)
+        from jcapy.commands.help import run_interactive_help
+        run_interactive_help()
         console.print("\n[grey50]Run 'jcapy <command> -h' for specific arguments.[/grey50]")
 
     except ImportError:
@@ -93,14 +71,16 @@ def show_welcome():
     print("Initializing your environment...")
 
 def main():
-    parser = argparse.ArgumentParser(description=f"# jcapy Core - The One-Army Orchestrator\n# Version: {VERSION}", add_help=False)
+    parser = argparse.ArgumentParser(description=f"# jcapy Core - The One-Army Orchestrator\n# Version: {VERSION}", add_help=True)
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Subcommands with Aliases
     subparsers.add_parser("list", aliases=["ls"], help="List all harvested frameworks")
 
-    harvest_parser = subparsers.add_parser("harvest", aliases=["new"], help="Interactive framework extraction wizard")
-    harvest_parser.add_argument("--doc", help="Path to documentation file to auto-harvest from")
+    # Harvest Command
+    harvest_parser = subparsers.add_parser("harvest", aliases=["new"], help="Extract current code into a reusable skill")
+    harvest_parser.add_argument("--doc", help="Path to existing documentation to parse")
+    harvest_parser.add_argument("--auto", help="Path to file to automatically extract a skill from")
     harvest_parser.add_argument("doc_flag", nargs='?', help="Positional path to doc (optional)")
 
     # Search Command
@@ -122,7 +102,8 @@ def main():
     subparsers.add_parser("manage", aliases=["tui"], help="Interactive TUI Manager")
 
     # Persona Command
-    subparsers.add_parser("persona", aliases=["p"], help="Switch Persona")
+    persona_parser = subparsers.add_parser("persona", aliases=["p"], help="Switch Persona")
+    persona_parser.add_argument("name", nargs="?", help="Name of the persona to switch to")
 
     # Init Command
     subparsers.add_parser("init", help="Scaffold One-Army Project")
@@ -156,18 +137,44 @@ def main():
     # Help Command
     subparsers.add_parser("help", help="Show help message")
 
+    # MCP Command
+    subparsers.add_parser("mcp", help="Start JCapy MCP Server (Stdio)")
+
     # Undo Command
     undo_parser = subparsers.add_parser("undo", help="Undo last destructive action")
     undo_parser.add_argument("--list", action="store_true", dest="list_undo", help="List undo history")
+
+    # Fix Command
+    fix_parser = subparsers.add_parser("fix", help="Rapid tactical code fix")
+    fix_parser.add_argument("file", help="Path to file to fix")
+    fix_parser.add_argument("instruction", help="Instruction for the fix")
+    fix_parser.add_argument("--diag", help="LSP diagnostic context (error messages)")
+
+    # Explore Command
+    explore_parser = subparsers.add_parser("explore", help="Autonomous research & draft skill")
+    explore_parser.add_argument("topic", help="Topic to research")
+
+    # Map Command
+    map_parser = subparsers.add_parser("map", help="Analyze project for harvesting candidates")
+    map_parser.add_argument("path", nargs="?", default=".", help="Project path to map")
 
     # Tutorial Command
     tutorial_parser = subparsers.add_parser("tutorial", help="Interactive onboarding")
     tutorial_parser.add_argument("--reset", action="store_true", help="Reset tutorial progress")
 
     # Config Command
-    config_parser = subparsers.add_parser("config", help="Set or view preferences")
-    config_parser.add_argument("action", nargs="?", choices=["set", "get", "list"], default="list", help="Action: set, get, or list")
-    config_parser.add_argument("key_value", nargs="?", help="key=value for set, key for get")
+    config_parser = subparsers.add_parser("config", help="Manage UX preferences and keys")
+    config_subparsers = config_parser.add_subparsers(dest="action")
+    config_subparsers.add_parser("list", help="List all preferences")
+
+    set_key_parser = config_subparsers.add_parser("set-key", help="Set AI Provider API Key")
+    set_key_parser.add_argument("provider", choices=["gemini", "openai", "deepseek"], help="AI Provider name")
+
+    config_get_parser = config_subparsers.add_parser("get", help="Get a preference")
+    config_get_parser.add_argument("key_value", help="Key name")
+
+    config_set_parser = config_subparsers.add_parser("set", help="Set a preference")
+    config_set_parser.add_argument("key_value", help="key=value")
 
     try:
         # Handling for no args
@@ -220,8 +227,8 @@ def main():
             print(f"jcapy v{VERSION}")
             return
 
-        # Handle custom help flag
-        if "-h" in sys.argv or "--help" in sys.argv:
+        # Handle custom help flag - only for global help
+        if len(sys.argv) == 2 and sys.argv[1] in ["-h", "--help"]:
             check_for_framework_updates()
             print_help()
             return
@@ -244,11 +251,9 @@ def main():
             run_tui(get_active_library_path())
         elif cmd in ["harvest", "new"]:
             doc_arg = args.doc if args.doc else getattr(args, 'doc_flag', None)
-            harvest_framework(doc_arg)
+            harvest_framework(doc_arg, auto_path=args.auto)
         elif cmd == "search":
             search_frameworks(args.query)
-        elif cmd == "open":
-            open_framework(args.name)
         elif cmd == "code":
             open_brain_vscode()
         elif cmd in ["delete", "rm"]:
@@ -257,7 +262,7 @@ def main():
             from jcapy.ui.tui import run as run_tui
             run_tui(get_active_library_path())
         elif cmd in ["persona", "p"]:
-            select_persona()
+            select_persona(getattr(args, 'name', None))
         elif cmd == "init":
             init_project()
         elif cmd == "merge":
@@ -274,6 +279,15 @@ def main():
             push_all_personas()
         elif cmd == "apply":
             apply_framework(args.name, args.dry_run)
+        elif cmd == "fix":
+            rapid_fix(args.file, args.instruction, diagnostics=args.diag)
+        elif cmd == "explore":
+            autonomous_explore(args.topic)
+        elif cmd == "mcp":
+            from jcapy.mcp.server import run_mcp_server
+            run_mcp_server()
+        elif cmd == "map":
+            map_project_patterns(args.path)
         elif cmd == "suggest":
             # Suggestion Logic
             print(f"{CYAN}🤖 jcapy Recommendations:{RESET}")
@@ -339,26 +353,51 @@ def main():
                 tutorial.run_interactive()
         elif cmd == "config":
             action = getattr(args, 'action', 'list')
-            key_value = getattr(args, 'key_value', None)
             if action == "list":
                 prefs = get_all_ux_preferences()
                 print(f"{CYAN}UX Preferences:{RESET}")
                 for k, v in prefs.items():
                     print(f"  {k}: {v}")
-            elif action == "set" and key_value and "=" in key_value:
-                key, value = key_value.split("=", 1)
-                # Parse boolean values
-                if value.lower() in ("true", "1", "yes"):
-                    value = True
-                elif value.lower() in ("false", "0", "no"):
-                    value = False
-                set_ux_preference(key.strip(), value)
-                show_success(f"Set {key.strip()} = {value}")
-            elif action == "get" and key_value:
-                prefs = get_all_ux_preferences()
-                print(f"{key_value}: {prefs.get(key_value, 'not set')}")
+            elif action == "set-key":
+                # Secure prompt for key
+                from rich.prompt import Prompt
+                provider = args.provider
+                key = Prompt.ask(f"Enter {provider.capitalize()} API Key", password=True)
+                if key:
+                    from jcapy.config import set_api_key
+                    success, msg = set_api_key(provider, key)
+                    if success:
+                        show_success(msg)
+                        print(f"{GREY}Tip: Run 'jcapy doctor' to verify.{RESET}")
+                    else:
+                        show_error(msg)
+                else:
+                    print(f"{YELLOW}Key entry cancelled.{RESET}")
+            elif action == "set":
+                key_value = getattr(args, 'key_value', None)
+                if key_value and "=" in key_value:
+                    key, value = key_value.split("=", 1)
+                    # Parse boolean values
+                    if value.lower() in ("true", "1", "yes"):
+                        value = True
+                    elif value.lower() in ("false", "0", "no"):
+                        value = False
+                    set_ux_preference(key.strip(), value)
+                    show_success(f"Set {key.strip()} = {value}")
+                else:
+                    print(f"{YELLOW}Usage: jcapy config set key=value{RESET}")
+            elif action == "get":
+                key_value = getattr(args, 'key_value', None)
+                if key_value:
+                    config = load_config()
+                    prefs = get_all_ux_preferences()
+                    # Check root first, then UX
+                    val = config.get(key_value) or prefs.get(key_value, 'not set')
+                    print(f"{key_value}: {val}")
+                else:
+                    print(f"{YELLOW}Usage: jcapy config get key{RESET}")
             else:
-                print(f"{YELLOW}Usage: jcapy config set key=value | get key | list{RESET}")
+                print(f"{YELLOW}Usage: jcapy config set-key [provider] | set key=value | get key | list{RESET}")
         else:
             # Typo correction
             if args.command:

@@ -131,10 +131,11 @@ def open_framework(name_query):
     if target_file:
         print(f"{GREEN}Opening {target_file}...{RESET}")
 
-        # Determine editor
+        # Determine editor - prioritizes EDITOR if set to Neovim
         editor = os.environ.get('EDITOR', 'open')
-        # Check if 'code' is available
-        if shutil.which('code'):
+
+        # If EDITOR is open or empty, and 'code' is available, use 'code'
+        if (editor == 'open' or not editor) and shutil.which('code'):
             editor = 'code'
 
         try:
@@ -219,10 +220,62 @@ def backup_framework(file_path):
     shutil.copy2(file_path, backup_path)
     return backup_path
 
-def harvest_framework(doc_path=None):
+def harvest_framework(doc_path=None, auto_path=None):
     lib_path = get_active_library_path()
     print(f"{MAGENTA}🌾 jcapy Harvest Protocol ({get_current_persona_name()}){RESET}")
     print("-----------------------------------------------------")
+
+    # 0. Ghost-Extraction (Level 3.0)
+    if auto_path and os.path.exists(auto_path):
+        from jcapy.utils.ai import call_ai_agent
+        print(f"{CYAN}👻 Ghost-Extracting Skill from: {auto_path}...{RESET}")
+
+        with open(auto_path, 'r') as f:
+            code_context = f.read()
+
+        prompt = f"""
+You are the **jcapy Skill Librarian**. Extract the core reusable logic from the following code and format it as a JCapy "Fortress" Standard skill.
+
+### Fortress Standard Requirements:
+1. **Idempotent**: Each block must be safe to run multiple times.
+2. **Observable**: Include echos/emojis for progress.
+3. **Execution Block**: Wrap the core logic in <!-- jcapy:EXEC --> ```bash block.
+4. **Metadata**: Include tags, grade, description.
+
+### Input Code:
+{code_context}
+
+### Output:
+Return ONLY the Markdown content for the skill.
+"""
+        print(f"{YELLOW}📡 AI is drafting the skill...{RESET}")
+        result, err = call_ai_agent(prompt)
+
+        if result:
+            skill_name = os.path.basename(auto_path).split('.')[0]
+            target_dir = os.path.join(lib_path, "skills", "auto")
+            os.makedirs(target_dir, exist_ok=True)
+            target_path = os.path.join(target_dir, f"{skill_name}.bs.md")
+
+            with open(target_path, 'w') as f:
+                f.write(result)
+
+            print(f"{GREEN}✔ Auto-harvested skill draft saved to: {target_path}{RESET}")
+            if shutil.which('code'):
+                subprocess.call(['code', target_path])
+            return
+        else:
+            print(f"{RED}Auto-Harvest Error: {err}{RESET}")
+            print(f"{YELLOW}Falling back to Local Prompt Dump...{RESET}")
+
+            out_file = "harvest_skill.prompt.txt"
+            with open(out_file, 'w') as f:
+                f.write(prompt)
+            print(f"\n{GREEN}🌾 Harvest Prompt generated:{RESET} {out_file}")
+
+            if shutil.which('code'):
+                subprocess.call(['code', out_file])
+            return
 
     # Smart Harvest: Pre-fill from doc OR Draft Overwrite
     defaults = {}
@@ -576,18 +629,23 @@ def apply_framework(framework_name, dry_run=False, context=None):
         console = Console()
         lib_path = get_active_library_path()
 
-        # 1. Find the Skill File (Reuse logic from open_skill)
+        # 1. Find the Skill File (Prioritize Exact Matches)
         target_file = None
-        # Direct/Fuzzy Search
+        fuzzy_match = None
+
         for root, dirs, files in os.walk(lib_path):
             for f in files:
+                # Exact Match (with or without .md)
                 if f == framework_name or f == f"{framework_name}.md":
                     target_file = os.path.join(root, f)
                     break
-                if framework_name.lower() in f.lower() and f.endswith(".md"):
-                     target_file = os.path.join(root, f)
-                     break
+                # Fuzzy Match (keep as fallback)
+                if not fuzzy_match and framework_name.lower() in f.lower() and f.endswith(".md"):
+                    fuzzy_match = os.path.join(root, f)
             if target_file: break
+
+        # Fallback to fuzzy only if no exact match found
+        target_file = target_file or fuzzy_match
 
         if not target_file:
             console.print(f"[bold red]❌ Error:[/bold red] Framework '{framework_name}' not found.")
@@ -599,8 +657,8 @@ def apply_framework(framework_name, dry_run=False, context=None):
         with open(target_file, 'r') as f:
             content = f.read()
 
-        # Regex to find <!-- jcapy:EXEC --> followed by ```bash ... ```
-        pattern = r'<!--\s*jcapy:EXEC\s*-->\s*```bash\n(.*?)\n```'
+        # Robust Regex: handles trailing spaces and optional carriage returns
+        pattern = r'<!--\s*jcapy:EXEC\s*-->\s*```bash[^\n\r]*[\n\r]+(.*?)\n```'
         matches = re.findall(pattern, content, re.DOTALL)
 
         if not matches:

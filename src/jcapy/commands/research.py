@@ -15,6 +15,10 @@ GREY = '\033[0;90m'
 
 def autonomous_explore(topic, provider='local'):
     """Entry point for jcapy explore <topic>"""
+    if not topic:
+        print(f"\033[1;31mError: Topic is required for exploration.\033[0m")
+        return
+
     print(f"{MAGENTA}🔍 Autonomous Research: {RESET}{topic}...")
 
     # 1. Prepare Research Prompt

@@ -1,0 +1,82 @@
+
+You are the **jcapy Skill Librarian**. Extract the core reusable logic from the following code and format it as a JCapy "Fortress" Standard skill.
+
+### Fortress Standard Requirements:
+1. **Idempotent**: Each block must be safe to run multiple times.
+2. **Observable**: Include echos/emojis for progress.
+3. **Execution Block**: Wrap the core logic in <!-- jcapy:EXEC --> ```bash block.
+4. **Metadata**: Include tags, grade, description.
+
+### Input Code:
+import os
+import json
+import urllib.request
+import urllib.error
+from jcapy.config import get_api_key
+
+def call_ai_agent(prompt, provider='gemini'):
+    """Generic helper to call LLM providers directly via urllib."""
+    provider = provider.lower()
+    api_key = get_api_key(provider)
+
+    if not api_key:
+        return None, f"No API key found for {provider}"
+
+    if provider == 'gemini':
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        data = json.dumps({
+            "contents": [{
+                "parts": [{"text": prompt}]
+            }]
+        }).encode('utf-8')
+
+        req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
+
+        try:
+            with urllib.request.urlopen(req, timeout=30) as response:
+                result = json.loads(response.read().decode('utf-8'))
+                if 'candidates' in result:
+                    return result['candidates'][0]['content']['parts'][0]['text'], None
+                return None, "Gemini Error: Unexpected response format"
+        except urllib.error.HTTPError as e:
+            err_msg = e.read().decode('utf-8')
+            return None, f"Gemini HTTP Error: {err_msg}"
+        except Exception as e:
+            return None, str(e)
+
+    elif provider == 'openai' or provider == 'deepseek':
+        url = "https://api.openai.com/v1/chat/completions"
+        model = "gpt-4o"
+        if provider == 'deepseek':
+            url = "https://api.deepseek.com/chat/completions"
+            model = "deepseek-chat"
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        }
+        data = json.dumps({
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.2
+        }).encode('utf-8')
+
+        req = urllib.request.Request(url, data=data, headers=headers)
+
+        try:
+            with urllib.request.urlopen(req, timeout=30) as response:
+                result = json.loads(response.read().decode('utf-8'))
+                if 'choices' in result:
+                    return result['choices'][0]['message']['content'], None
+                return None, f"{provider.capitalize()} Error: Unexpected response format"
+        except urllib.error.HTTPError as e:
+            err_msg = e.read().decode('utf-8')
+            return None, f"{provider.capitalize()} HTTP Error: {err_msg}"
+        except Exception as e:
+            return None, str(e)
+
+    return None, f"Unsupported provider: {provider}"
+
+
+### Output:
+Return ONLY the Markdown content for the skill.

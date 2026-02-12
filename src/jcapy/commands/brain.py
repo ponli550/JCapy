@@ -82,23 +82,42 @@ def load_face():
     else:
         print(f"{CYAN}🤖 jcapy{RESET}")
 
-def open_brain_vscode():
-    """Opens the entire jcapy Brain (~/.jcapy) in VS Code"""
+def open_brain_editor():
+    """Opens the entire jcapy Brain (~/.jcapy) in the preferred editor"""
     if not os.path.exists(JCAPY_HOME):
         os.makedirs(JCAPY_HOME, exist_ok=True)
 
     print(f"📂 Opening jcapy Brain at {JCAPY_HOME}...")
 
-    # Try VS Code first
-    if shutil.which('code'):
-        subprocess.call(['code', JCAPY_HOME])
-    elif sys.platform == 'darwin':
-        subprocess.call(['open', JCAPY_HOME])
-    else:
-        print(f"{RED}VS Code ('code') not found in PATH.{RESET}")
+    # Determine editor
+    editor = os.environ.get('EDITOR', 'open')
 
-def select_persona():
+    if (editor == 'open' or not editor) and shutil.which('code'):
+         editor = 'code'
+
+    try:
+         subprocess.call([editor, JCAPY_HOME])
+    except Exception as e:
+         print(f"{RED}Failed to open: {e}{RESET}")
+         subprocess.call(['open', JCAPY_HOME])
+
+def open_brain_vscode():
+    # Legacy wrapper for main.py compatibility
+    return open_brain_editor()
+
+def select_persona(name=None):
     """Interactive Persona Selection & Configuration"""
+    if name:
+        config = load_config()
+        if name in config.get("personas", {}):
+            config["current_persona"] = name
+            save_config(config)
+            print(f"Persona switched to {name}")
+            return
+        else:
+            print(f"Error: Persona '{name}' not found.")
+            return
+
     load_face()
 
     config = load_config()

@@ -87,6 +87,27 @@ def get_api_key(provider):
     config = load_config()
     return config.get('env', {}).get(key_name)
 
+def set_api_key(provider, key):
+    """Securely saves an API key to the config file."""
+    provider = provider.lower()
+    env_map = {
+        "gemini": "GEMINI_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "deepseek": "DEEPSEEK_API_KEY"
+    }
+
+    key_name = env_map.get(provider)
+    if not key_name:
+        return False, f"Unsupported provider: {provider}"
+
+    config = load_config()
+    if 'env' not in config:
+        config['env'] = {}
+
+    config['env'][key_name] = key
+    save_config(config)
+    return True, f"Successfully saved {provider.capitalize()} API key."
+
 def get_active_library_path():
     config = load_config()
     current_persona = config.get("current_persona", "programmer")

@@ -4,18 +4,85 @@ import shutil
 import subprocess
 import io
 import stat
-
-# Try importing Rich
-try:
-    from rich.console import Console
-    from rich.markdown import Markdown
-    HAS_RICH = True
-except ImportError:
-    HAS_RICH = False
+import sys
+import time
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.panel import Panel
+from rich.text import Text
 
 from jcapy.config import load_config, JCAPY_HOME, get_current_persona_name, get_active_library_path
 from jcapy.utils.git_lib import get_git_status
-import time # for mtime checks
+from jcapy.ui.ux.command_bar import CommandBar
+
+import threading
+import queue
+
+# ANSI Colors for terminal escape fallbacks
+CYAN = '\033[1;36m'
+GREEN = '\033[1;32m'
+YELLOW = '\033[1;33m'
+RESET = '\033[0m'
+COLOR_TITLE = CYAN
+COLOR_SUBTITLE = YELLOW
+
+class ProcessManager:
+    """Manages background subprocess execution with real-time output capturing."""
+    def __init__(self):
+        self.process = None
+        self.output_queue = queue.Queue()
+        self.is_running = False
+        self.exit_code = None
+        self.command = ""
+        self.full_output = []
+
+    def start(self, cmd_str):
+        self.command = cmd_str
+        self.is_running = True
+        self.exit_code = None
+        self.output_queue = queue.Queue()
+        self.full_output = []
+
+        def run_proc():
+            exe = "jcapy" if shutil.which("jcapy") else sys.executable + " -m jcapy"
+            try:
+                # Use stdbuf or similar if possible, but Popen with bufsize=1 works for line-buffering
+                self.process = subprocess.Popen(
+                    f"{exe} {cmd_str}",
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True
+                )
+
+                if self.process.stdout:
+                    for line in self.process.stdout:
+                        self.output_queue.put(line)
+                        self.full_output.append(line)
+
+                self.process.wait()
+                self.exit_code = self.process.returncode
+            except Exception as e:
+                err_msg = f"Error: {e}\n"
+                self.output_queue.put(err_msg)
+                self.full_output.append(err_msg)
+            finally:
+                self.is_running = False
+
+        self.thread = threading.Thread(target=run_proc, daemon=True)
+        self.thread.start()
+
+    def kill(self):
+        if self.process:
+            try:
+                # Kill the process group if possible to ensure children die
+                import signal
+                os.kill(self.process.pid, signal.SIGTERM)
+            except:
+                self.process.terminate()
+            self.is_running = False
 
 # Colors (initialized in run)
 COLOR_DEFAULT = 1
@@ -24,499 +91,410 @@ COLOR_TITLE = 3
 COLOR_SUBTITLE = 4
 
 def is_locked(path):
-    """Check if file has user immutable flag (uchg) set."""
     try:
         st = os.stat(path)
         return bool(st.st_flags & stat.UF_IMMUTABLE)
-    except Exception:
-        return False
+    except Exception: return False
 
 def toggle_lock(path):
-    """Toggle the user immutable flag."""
     locked = is_locked(path)
     flag = 'nouchg' if locked else 'uchg'
     try:
         subprocess.call(['chflags', flag, path])
         return not locked
-    except Exception:
-        return locked
+    except Exception: return locked
 
 def get_skills(library_path):
-    """Walks the library and returns a list of (name, path, domain) tuples."""
     skills = []
-    if not os.path.exists(library_path):
-        return skills
-
+    if not os.path.exists(library_path): return skills
     for root, dirs, files in os.walk(library_path):
         for f in files:
             if f.endswith(".md") and f != "TEMPLATE_SKILL.md":
                 abs_path = os.path.join(root, f)
-                # Domain is the folder name, unless it's the root of library
                 domain = os.path.basename(root)
-                if root == library_path:
-                    domain = "root"
-
-                skills.append({
-                    "name": f,
-                    "path": abs_path,
-                    "domain": domain,
-                    "locked": is_locked(abs_path)
-                })
-
-    # Sort by domain then name
+                if root == library_path: domain = "root"
+                skills.append({"name": f, "path": abs_path, "domain": domain, "locked": is_locked(abs_path)})
     skills.sort(key=lambda x: (x['domain'], x['name']))
     return skills
 
 def draw_dashboard(stdscr, selected_idx, personas_data, recent_files):
     stdscr.erase()
     h, w = stdscr.getmaxyx()
-
-    # 1. Header
-    current_persona = get_current_persona_name().upper()
-    lib_path = get_active_library_path()
-
-    # Get Sync Status
-    last_sync, pending = get_git_status(lib_path)
-    sync_status = "✅" if pending == 0 else "🛠️"
-    sync_text = f"Last Sync: {last_sync if last_sync else 'Never'} | Pending: {pending} {sync_status}"
-
-    title_line1 = f" Who is operating right now? (Current: {current_persona}) "
-    title_line2 = f" ↳ {sync_text} "
-
+    title = f" Who is operating right now? (Current: {get_current_persona_name().upper()}) "
     try:
-        # Line 1: Persona
         stdscr.attron(curses.color_pair(COLOR_TITLE) | curses.A_BOLD)
-        stdscr.addstr(1, (w - len(title_line1)) // 2, title_line1)
+        stdscr.addstr(1, (w - len(title)) // 2, title)
         stdscr.attroff(curses.color_pair(COLOR_TITLE) | curses.A_BOLD)
+    except: pass
 
-        # Line 2: Sync Status (Dimmer/Subtitle Color)
-        stdscr.attron(curses.color_pair(COLOR_SUBTITLE))
-        stdscr.addstr(2, (w - len(title_line2)) // 2, title_line2)
-        stdscr.attroff(curses.color_pair(COLOR_SUBTITLE))
-
-    except curses.error: pass
-
-    # 2. Personas Columns (Kanban)
-    # Calculate column width based on nuumber of personas (max 3-4 visible?)
-    # For now, let's list them horizontally with status
-    y_start = 4
-    col_width = 25
-    margin = 2
-
+    y_start, col_width, margin = 4, 25, 2
     current_x = margin
-
     for idx, p in enumerate(personas_data):
         if current_x + col_width > w: break
-
-        name = p['name'].capitalize()
-        if p['name'] == 'programmer': name = "Programmer"
-
-        # Highlight if selected
         is_selected = (idx == selected_idx)
         attr = curses.color_pair(COLOR_HIGHLIGHT) if is_selected else curses.color_pair(COLOR_DEFAULT) | curses.A_BOLD
-
         try:
-            # Column Box
             stdscr.addstr(y_start, current_x, f"┌{'─'*(col_width-2)}┐", attr)
-            stdscr.addstr(y_start+1, current_x, f"│ {name:<{col_width-4}} │", attr)
+            stdscr.addstr(y_start+1, current_x, f"│ {p['name'].capitalize():<{col_width-4}} │", attr)
             stdscr.addstr(y_start+2, current_x, f"├{'─'*(col_width-2)}┤", attr)
-
-            # Stats
-            stats = f"{p['count']} files"
-            stdscr.addstr(y_start+3, current_x, f"│ {stats:<{col_width-4}} │", attr)
-
-            # Status (Mock for speed, or real if passed)
-            status = "Online"
-            stdscr.addstr(y_start+4, current_x, f"│ {status:<{col_width-4}} │", attr)
-
             stdscr.addstr(y_start+5, current_x, f"└{'─'*(col_width-2)}┘", attr)
-        except curses.error: pass
-
+        except: pass
         current_x += col_width + margin
-
-    # 3. Recent Activity Section
-    recent_y = y_start + 7
-    try:
-        stdscr.addstr(recent_y, 2, " RECENT ACTIVITY (Harvests/Edits) ", curses.color_pair(COLOR_SUBTITLE))
-        stdscr.hline(recent_y + 1, 2, curses.ACS_HLINE, w - 4)
-    except curses.error: pass
-
-    for i, file_info in enumerate(recent_files[:h - recent_y - 4]):
-        name = file_info['name']
-        ago = file_info['ago']
-        line = f" • {name:<30} {ago}"
-        try:
-            stdscr.addstr(recent_y + 2 + i, 4, line)
-        except curses.error: pass
-
-    # 4. Footer
-    footer = " Nav: LEFT/RIGHT | Select: ENTER | Toggle View: T | Quit: Q "
-    try:
-        stdscr.addstr(h - 1, 0, footer.center(w)[:w-1], curses.color_pair(COLOR_SUBTITLE))
-    except curses.error: pass
-
     stdscr.refresh()
+
+LEADER_MAP = {
+    'd': 'doctor',
+    's': 'sync',
+    'p': 'push',
+    'h': 'harvest',
+    'l': 'list',
+    'm': 'manage',
+    'i': 'init',
+    'D': 'deploy',
+    '?': 'help'
+}
+
+def draw_leader_menu(stdscr):
+    """Draws the quick-action leader menu overlay."""
+    h, w = stdscr.getmaxyx()
+    box_h, box_w = 14, 40
+    box_y, box_x = (h - box_h) // 2, (w - box_w) // 2
+
+    try:
+        win = curses.newwin(box_h, box_w, box_y, box_x)
+        win.box()
+        win.attron(curses.color_pair(COLOR_TITLE) | curses.A_BOLD)
+        win.addstr(1, (box_w - 14) // 2, " POWER MAGIC ")
+        win.attroff(curses.color_pair(COLOR_TITLE) | curses.A_BOLD)
+
+        actions = [
+            ("d", "Doctor (Health)"),
+            ("s", "Sync (Pull)"),
+            ("p", "Push (Publish)"),
+            ("h", "Harvest (Skill)"),
+            ("l", "List (Library)"),
+            ("m", "Manage (Dash)"),
+            ("i", "Init (Project)"),
+            ("D", "Deploy (Prod)"),
+            ("?", "Help (TUI)")
+        ]
+
+        for i, (key, desc) in enumerate(actions):
+            win.addstr(3 + i, 4, f"[ {key} ] ", curses.color_pair(COLOR_HIGHLIGHT))
+            win.addstr(3 + i, 10, desc, curses.color_pair(COLOR_DEFAULT))
+
+        win.addstr(box_h - 2, (box_w - 18) // 2, "[Esc] to cancel", curses.color_pair(COLOR_SUBTITLE))
+        win.refresh()
+        return win
+    except:
+        return None
 
 def draw_dual_pane(stdscr, selected_idx, skills, filter_text):
     stdscr.erase()
     h, w = stdscr.getmaxyx()
-
-    # Define window widths (30% left, 70% right)
     left_w = int(w * 0.3)
     right_w = w - left_w
-
-    # 1. Left Window: The List
     try:
-        left_win = stdscr.subwin(h - 2, left_w, 1, 0) # Start at (1,0)
+        left_win = stdscr.subwin(h - 2, left_w, 1, 0)
         left_win.box()
         left_win.addstr(0, 2, " FRAMEWORKS ", curses.color_pair(COLOR_TITLE))
-
-        # Calculate scroll offset for list
         max_items = h - 4
         start_idx = max(0, selected_idx - max_items + 1)
-        end_idx = min(len(skills), start_idx + max_items)
-
-        for i in range(start_idx, end_idx):
-            skill = skills[i]
-            y = i - start_idx + 1 # Relative to window
-
+        for i in range(start_idx, min(len(skills), start_idx + max_items)):
             attr = curses.color_pair(COLOR_HIGHLIGHT) if i == selected_idx else curses.A_NORMAL
+            display_name = ("🔒 " if skills[i].get('locked') else "  ") + skills[i]['name'][:left_w-6]
+            left_win.addstr(i - start_idx + 1, 2, display_name, attr)
+    except: pass
 
-            # Lock Indicator
-            lock_char = "🔒 " if skill.get('locked') else "  "
-
-            # Clip name to fit the narrow pane
-            # Available width = Window Width - Border(2) - Lock(2)
-            max_name_len = left_w - 4 - 2
-            display_name = f"{lock_char}{skill['name'][:max_name_len]}"
-
-            try:
-                left_win.addstr(y, 2, display_name, attr)
-            except curses.error: pass
-    except curses.error:
-        pass # Window creation might fail if terminal too small
-
-    # 2. Right Window: The Preview
     try:
-        right_win = stdscr.subwin(h - 2, right_w, 1, left_w) # Start at (1, left_w)
+        right_win = stdscr.subwin(h - 2, right_w, 1, left_w)
         right_win.box()
         right_win.addstr(0, 2, " PREVIEW ", curses.color_pair(COLOR_TITLE))
-
         if skills and selected_idx < len(skills):
-            selected_skill = skills[selected_idx]
-            try:
-                if HAS_RICH:
-                    # Capture Rich output
-                    f = io.StringIO()
-                    console = Console(file=f, force_terminal=True, color_system=None, width=right_w - 4)
+            with open(skills[selected_idx]['path'], 'r') as f:
+                lines = f.readlines()
+            for i, line in enumerate(lines[:h-4]):
+                right_win.addstr(i + 1, 2, line.rstrip()[:right_w-4])
+    except: pass
 
-                    with open(selected_skill['path'], 'r') as md_file:
-                        content = md_file.read()
-                        md = Markdown(content)
-                        console.print(md)
+def strip_ansi(text):
+    """Removes ANSI escape sequences from text."""
+    import re
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    return ansi_escape.sub('', text)
 
-                    formatted_content = f.getvalue()
-                    lines = formatted_content.splitlines()
-                else:
-                    # Fallback if Rich import failed
-                    with open(selected_skill['path'], 'r') as f:
-                        lines = f.readlines()
+def draw_process_hud(stdscr, active_proc):
+    """Draws a real-time output panel for a running background process."""
+    if not active_proc.is_running and active_proc.exit_code is None:
+        return
 
-                for i, line in enumerate(lines):
-                    if i >= h - 4: break
-                    # Clean the line and clip it to pane width
-                    clean_line = line.rstrip()[:right_w - 4]
-                    right_win.addstr(i + 1, 2, clean_line)
-            except Exception as e:
-                right_win.addstr(1, 2, f"Error reading file: {e}")
-    except curses.error:
-        pass
+    h, w = stdscr.getmaxyx()
+    box_h, box_w = min(h - 4, 20), min(w - 10, 100)
+    box_y, box_x = (h - box_h) // 2, (w - box_w) // 2
 
-    # 3. Footer & Filter Info
-    footer = f" Filter: /{filter_text} | Nav: UP/DOWN | Act: ENTER | Edit: E | Run: R | Lock: L | Quit: Q "
+    f = io.StringIO()
+    console = Console(file=f, force_terminal=True, color_system=None, width=box_w - 4)
+
+    # Filter and format lines
+    output_lines = [strip_ansi(line) for line in active_proc.full_output]
+    content = "".join(output_lines[-(box_h-4):])
+
+    status_text = "[bold yellow]Running...[/bold yellow]"
+    if not active_proc.is_running:
+        color = "green" if active_proc.exit_code == 0 else "red"
+        status_text = f"[bold {color}]Finished ({active_proc.exit_code})[/bold {color}]"
+
+    console.print(Panel(
+        Text(content),
+        title=f" [bold magenta]Master Key: {active_proc.command}[/bold magenta] ",
+        subtitle=f" {status_text} | [dim]SPACE to control / any key to close[/dim] ",
+        border_style="magenta"
+    ))
+
+    lines = strip_ansi(f.getvalue()).splitlines()
     try:
-        stdscr.addstr(h - 1, 0, footer.center(w)[:w-1], curses.color_pair(COLOR_SUBTITLE))
-    except curses.error:
-        pass
+        win = curses.newwin(box_h, box_w, box_y, box_x)
+        win.attron(curses.color_pair(COLOR_DEFAULT))
+        for i, line in enumerate(lines[:box_h]):
+             try: win.addstr(i, 0, line[:box_w-1])
+             except: pass
+        win.refresh()
+        del win
+    except: pass
 
-    stdscr.refresh()
+def display_output_panel(stdscr, cmd_name, output):
+    """Renders a floating Rich panel with command output, stripped of ANSI."""
+    h, w = stdscr.getmaxyx()
+    box_h, box_w = min(h - 4, 30), min(w - 10, 110)
+    box_y, box_x = (h - box_h) // 2, (w - box_w) // 2
+    f = io.StringIO()
+    # Use color_system=None to prevent Rich from generating its own ANSI codes
+    console = Console(file=f, force_terminal=True, color_system=None, width=box_w - 4)
+
+    # Pre-strip the output so Rich doesn't try to parse existing ANSI as text
+    clean_output = strip_ansi(output)
+
+    console.print(Panel(Text(clean_output), title=f" [bold cyan]{cmd_name}[/bold cyan] ", border_style="magenta", subtitle=" [dim]Any key to dismiss[/dim] "))
+
+    # Final strip of the rendered panel just in case
+    lines = strip_ansi(f.getvalue()).splitlines()
+
+    try:
+        win = curses.newwin(box_h, box_w, box_y, box_x)
+        win.attron(curses.color_pair(COLOR_DEFAULT))
+        for i, line in enumerate(lines[:box_h]):
+             try: win.addstr(i, 0, line[:box_w-1])
+             except: pass
+        win.refresh()
+        stdscr.getch()
+        del win
+    except: pass
 
 def action_menu(stdscr, skill, library_path):
-    """Sub-menu for Edit/Move/Delete"""
     options = ["Edit (VS Code)", "Move", "Delete", "Cancel"]
     selected_idx = 0
-
     while True:
         h, w = stdscr.getmaxyx()
-        # Draw Box for inputs
-        box_h, box_w = 10, 50
         try:
-            box_y, box_x = (h - box_h) // 2, (w - box_w) // 2
-            win = curses.newwin(box_h, box_w, box_y, box_x)
+            win = curses.newwin(10, 50, (h-10)//2, (w-50)//2)
             win.box()
             win.addstr(1, 2, f"Action: {skill['name']}", curses.color_pair(COLOR_TITLE))
-
-            for idx, option in enumerate(options):
-                # Check formatting based on lock status
-                display_option = option
-                is_disabled = False
-
-                if skill.get('locked') and option in ["Move", "Delete"]:
-                     display_option = f"{option} (LOCKED)"
-                     is_disabled = True
-
-                if idx == selected_idx:
-                    attr = curses.color_pair(COLOR_HIGHLIGHT)
-                elif is_disabled:
-                    attr = curses.color_pair(COLOR_DEFAULT) | curses.A_DIM
-                else:
-                    attr = curses.color_pair(COLOR_DEFAULT)
-
-                win.addstr(3 + idx, 4, f"> {display_option}" if idx == selected_idx else f"  {display_option}", attr)
-
+            for idx, opt in enumerate(options):
+                attr = curses.color_pair(COLOR_HIGHLIGHT) if idx == selected_idx else curses.color_pair(COLOR_DEFAULT)
+                win.addstr(3 + idx, 4, f"> {opt}" if idx == selected_idx else f"  {opt}", attr)
             win.refresh()
-        except curses.error:
-            pass
-
+        except: pass
         key = stdscr.getch()
-
-        if key == curses.KEY_UP and selected_idx > 0:
-            selected_idx -= 1
-        elif key == curses.KEY_DOWN and selected_idx < len(options) - 1:
-            selected_idx += 1
-        elif key in [10, 13]: # Enter
-            # BLOCK ACTIONS IF LOCKED
-            if skill.get('locked') and selected_idx in [1, 2]: # Move or Delete
-                # Flash error or just ignore
-                curses.beep()
-                continue
-
-            if selected_idx == 0: # Edit
-                try:
-                    subprocess.call(['code', skill['path']])
-                except FileNotFoundError:
-                    subprocess.call(['open', skill['path']])
-                return # Exit menu after action
-            elif selected_idx == 1: # Move
-                curses.echo()
-                win.addstr(8, 2, "New Domain: ")
-                try:
-                    new_domain = win.getstr(8, 14).decode('utf-8').strip()
-                    curses.noecho()
-
-                    if new_domain:
-                        new_dir = os.path.join(library_path, "skills", new_domain)
-                        if not os.path.exists(new_dir):
-                            os.makedirs(new_dir)
-                        new_path = os.path.join(new_dir, skill['name'])
-                        shutil.move(skill['path'], new_path)
-                        return "refresh" # Signal to refresh list
-                except curses.error:
-                    pass
-            elif selected_idx == 2: # Delete
-                win.addstr(8, 2, "Are you sure? (y/N): ", curses.color_pair(COLOR_DEFAULT))
-                win.refresh()
-                confirm = stdscr.getch()
-                if confirm in [ord('y'), ord('Y')]:
-                    os.remove(skill['path'])
-                    return "refresh"
-            elif selected_idx == 3: # Cancel
-                return
-
-            return
-
-def run_associated_script(stdscr, skill, library_path):
-    """Looks for a script in library/scripts/ corresponding to the skill"""
-    script_name = skill['name'].replace('.md', '.sh')
-    # Try flat scripts folder first
-    script_path = os.path.join(library_path, 'scripts', script_name)
-
-    if not os.path.exists(script_path):
-        # Try domain-based folder
-        script_path = os.path.join(library_path, 'scripts', skill['domain'], script_name)
-
-    if os.path.exists(script_path) and os.access(script_path, os.X_OK):
-        # Found executable script
-        curses.def_prog_mode() # Save curses state
-        curses.endwin()        # Restore terminal for script output
-
-        print(f"\n[jcapy] Running script: {script_name}...\n")
-        subprocess.call([script_path])
-        print(f"\n[jcapy] Execution finished. Press ENTER to return.")
-        input()
-
-        curses.reset_prog_mode() # Restore curses state
-        curses.doupdate()
-    else:
-        pass
+        if key == curses.KEY_UP and selected_idx > 0: selected_idx -= 1
+        elif key == curses.KEY_DOWN and selected_idx < len(options) - 1: selected_idx += 1
+        elif key in [10, 13]:
+            if selected_idx == 0: subprocess.call(['code', skill['path']])
+            elif selected_idx == 3: return
+            return "refresh"
 
 def edit_in_terminal(stdscr, path):
-    """Launch console editor (nano/vim) for the selected file"""
     editor = os.environ.get('EDITOR', 'nano')
+    if not shutil.which(editor): editor = 'vim'
+    curses.def_prog_mode()
+    curses.endwin()
+    try: subprocess.call([editor, path])
+    except: pass
+    curses.reset_prog_mode()
+    stdscr.clear()
+    stdscr.refresh()
+    curses.doupdate()
 
-    # Check if editor exists
-    if not shutil.which(editor):
-        # Fallback
-        if shutil.which('vim'): editor = 'vim'
-        elif shutil.which('vi'): editor = 'vi'
-        else: return # No editor found
-
+def execute_interactive_command(stdscr, cmd):
+    """Temporarily exits curses to run an interactive JCapy command."""
+    exe = "jcapy" if shutil.which("jcapy") else sys.executable + " -m jcapy"
     curses.def_prog_mode()
     curses.endwin()
 
+    print(f"\n{COLOR_TITLE}[jcapy] Executing interactive command: {cmd}{RESET}\n")
     try:
-        subprocess.call([editor, path])
+        # Connect directly to the terminal's stdin/stdout
+        subprocess.call(f"{exe} {cmd}", shell=True)
+        print(f"\n{COLOR_SUBTITLE}[jcapy] Execution finished. Press ENTER to return to TUI.{RESET}")
+        input()
     except Exception as e:
-        print(f"Error launching editor: {e}")
-        input("Press Enter to continue...")
+        print(f"Error: {e}")
+        input("Press ENTER to continue...")
 
     curses.reset_prog_mode()
+    stdscr.clear()
+    stdscr.refresh()
     curses.doupdate()
 
 def main(stdscr, initial_library_path):
-    # Setup Colors
     curses.start_color()
     curses.use_default_colors()
     curses.init_pair(COLOR_DEFAULT, curses.COLOR_WHITE, -1)
     curses.init_pair(COLOR_HIGHLIGHT, curses.COLOR_BLACK, curses.COLOR_CYAN)
     curses.init_pair(COLOR_TITLE, curses.COLOR_CYAN, -1)
     curses.init_pair(COLOR_SUBTITLE, curses.COLOR_YELLOW, -1)
-
-    curses.curs_set(0) # Hide cursor
+    curses.curs_set(0)
 
     # State
     current_library_path = initial_library_path
-    view_mode = "dashboard" # Start on dashboard
+    view_mode, edit_mode = "dashboard", "NORMAL"
+    cmd_bar = CommandBar()
+    dash_idx, list_row, filter_text = 0, 0, ""
+    active_proc = ProcessManager()
+    stdscr.timeout(100)  # Polling interval (100ms)
 
-    # Dashboard State
-    dash_idx = 0
-    p_stats = []
-    recent_files = []
-
-    # List State
-    filter_text = ""
-    list_row = 0
-
-    # Load Config & Personas
+    # Mock/Load Data
     config = load_config()
-    personas = config.get("personas", {})
-    if "programmer" not in personas:
-         # Need default handling if config is bare
-         from jcapy.config import DEFAULT_LIBRARY_PATH
-         personas["programmer"] = {"path": DEFAULT_LIBRARY_PATH}
+    personas = config.get("personas", {"programmer": {"path": "/Users/irfanali/.jcapy/library"}})
 
-    # Helper to refresh dashboard data
-    def refresh_dashboard_data():
+    def refresh_data():
         stats = []
-        recent = []
-        for name in sorted(personas.keys()):
-            data = personas[name]
-            p_path = data.get("path")
-            count = 0
-            if p_path and os.path.exists(p_path):
-                for root, dirs, files in os.walk(p_path):
-                    # Filter hidden dirs
-                    dirs[:] = [d for d in dirs if not d.startswith('.')]
-                    for f in files:
-                        if f.endswith(".md"):
-                            count += 1
-                            mtime = os.path.getmtime(os.path.join(root, f))
-                            if time.time() - mtime < 86400 * 7: # 7 days
-                                # Format time ago
-                                diff = time.time() - mtime
-                                if diff < 3600: ago = f"{int(diff//60)}m ago"
-                                elif diff < 86400: ago = f"{int(diff//3600)}h ago"
-                                else: ago = f"{int(diff//86400)}d ago"
+        for name in personas: stats.append({"name": name, "count": 0})
+        return stats, []
 
-                                recent.append({"name": f, "ago": ago, "mtime": mtime, "persona": name})
-            stats.append({"name": name, "count": count})
-
-        recent.sort(key=lambda x: x['mtime'], reverse=True)
-        return stats, recent
-
-    # Initial Load
-    p_stats, recent_files = refresh_dashboard_data()
-
-    # Find initial dash_idx based on current library
-    for i, p in enumerate(p_stats):
-        if personas[p['name']].get('path') == initial_library_path:
-            dash_idx = i
-            break
+    p_stats, recent_files = refresh_data()
 
     while True:
+        h, w = stdscr.getmaxyx()
         if view_mode == "dashboard":
             draw_dashboard(stdscr, dash_idx, p_stats, recent_files)
-
-            key = stdscr.getch()
-
-            if key == curses.KEY_LEFT and dash_idx > 0:
-                dash_idx -= 1
-            elif key == curses.KEY_RIGHT and dash_idx < len(p_stats) - 1:
-                dash_idx += 1
-            elif key in [10, 13]: # Enter -> Switch to list view for selected persona
-                selected_p_name = p_stats[dash_idx]['name']
-                current_library_path = personas[selected_p_name]['path']
-                view_mode = "list"
-                # Update global config for persistence?
-                # For now just switch view context locally
-            elif key in [ord('t'), ord('T')]:
-                view_mode = "list"
-            elif key in [ord('q'), ord('Q')]:
-                break
-
-        elif view_mode == "list":
-            # List View Logic
-            all_skills = get_skills(current_library_path)
-            skills = [s for s in all_skills if filter_text.lower() in s['name'].lower()]
-
-            # Bound selection
-            if skills:
-                list_row = max(0, min(list_row, len(skills) - 1))
-            else:
-                list_row = 0
-
+        else:
+            skills = [s for s in get_skills(current_library_path) if filter_text.lower() in s['name'].lower()]
             draw_dual_pane(stdscr, list_row, skills, filter_text)
 
-            key = stdscr.getch()
+        # Draw Background Process HUD if active
+        if active_proc.is_running or active_proc.exit_code is not None:
+            draw_process_hud(stdscr, active_proc)
 
-            if key == curses.KEY_UP and list_row > 0:
-                list_row -= 1
-            elif key == curses.KEY_DOWN and list_row < len(skills) - 1:
-                list_row += 1
-            elif key == ord('q') and not filter_text:
-                if view_mode == "list":
-                    view_mode = "dashboard" # Back to dashboard instead of quit
-                else:
-                    break
-            elif key == 27: # ESC
-                if filter_text: filter_text = ""
-                else: view_mode = "dashboard"
-            elif key in [8, 127, curses.KEY_BACKSPACE]:
-                filter_text = filter_text[:-1]
-            elif key in [ord('E'), ord('e')]:
-                if skills: edit_in_terminal(stdscr, skills[list_row]['path'])
-            elif key in [ord('t'), ord('T')]:
-                view_mode = "dashboard"
-            elif 32 <= key <= 126 and key not in [ord('R'), ord('r'), ord('L'), ord('l')]:
-                filter_text += chr(key)
-            elif key in [ord('R'), ord('r')]:
-                if skills: run_associated_script(stdscr, skills[list_row], current_library_path)
-            elif key in [ord('L'), ord('l')]:
-                if skills: toggle_lock(skills[list_row]['path'])
-            elif key in [10, 13]: # Enter
-                if skills:
-                    result = action_menu(stdscr, skills[list_row], current_library_path)
-                    if result == "refresh": pass
+        cmd_bar.render(stdscr, edit_mode, h, w, COLOR_HIGHLIGHT, COLOR_SUBTITLE)
+        key = stdscr.getch()
+
+        # Handle "any key to dismiss" for finished process
+        if not active_proc.is_running and active_proc.exit_code is not None and key != -1:
+            active_proc.exit_code = None
+            active_proc.full_output = []
+            stdscr.clear()
+            continue
+
+        if key == -1: continue # No input, just loop for refresh
+
+        if edit_mode == "NORMAL":
+            # Master Key Interception: Space while process is running
+            if key == ord(' ') and active_proc.is_running:
+                # Master Control Menu
+                box_h, box_w = 10, 50
+                win = curses.newwin(box_h, box_w, (h-box_h)//2, (w-box_w)//2)
+                win.box()
+                win.addstr(1, 2, " MASTER KEY (Power Magic) ", curses.color_pair(COLOR_TITLE) | curses.A_BOLD)
+                win.addstr(3, 4, "[k] Kill Process", curses.color_pair(COLOR_DEFAULT))
+                win.addstr(4, 4, "[x] Background (Hide HUD)", curses.color_pair(COLOR_DEFAULT))
+                win.addstr(5, 4, "[any] Continue watching", curses.color_pair(COLOR_DEFAULT))
+                win.refresh()
+
+                stdscr.timeout(-1) # Wait for master choice
+                m_key = stdscr.getch()
+                stdscr.timeout(100) # Restore polling
+
+                if m_key == ord('k'): active_proc.kill()
+                elif m_key == ord('x'): active_proc.exit_code = None # Hide panel
+                del win
+                stdscr.clear()
+                continue
+
+            if view_mode == "dashboard":
+                if key in [curses.KEY_LEFT, ord('h')]: dash_idx = max(0, dash_idx - 1)
+                elif key in [curses.KEY_RIGHT, ord('l')]: dash_idx = min(len(p_stats)-1, dash_idx + 1)
+                elif key in [10, 13]:
+                    current_library_path = personas[p_stats[dash_idx]['name']]['path']
+                    view_mode = "list"
+                elif key == ord(':'): edit_mode = "COMMAND"; cmd_bar.clear()
+                elif key == ord('/'): edit_mode = "INSERT"; view_mode = "list"; cmd_bar.clear(); filter_text = ""
+                elif key == ord(' '): # Power Magic Leader
+                    win = draw_leader_menu(stdscr)
+                    if win:
+                        stdscr.timeout(-1) # Wait for subcommand
+                        action_key = stdscr.getch()
+                        stdscr.timeout(100) # Restore polling
+
+                        if 0 <= action_key <= 1114111 and chr(action_key) in LEADER_MAP:
+                            cmd = LEADER_MAP[chr(action_key)]
+                            if cmd == "manage": view_mode = "dashboard"
+                            elif cmd == "list": view_mode = "list"
+                            elif cmd in ["harvest", "sync", "push", "init", "deploy"]:
+                                execute_interactive_command(stdscr, cmd)
+                            else:
+                                active_proc.start(cmd)
+                        del win
+                elif key in [ord('q'), ord('Q')]: break
+            else:
+                if key in [curses.KEY_UP, ord('k')]: list_row = max(0, list_row - 1)
+                elif key in [curses.KEY_DOWN, ord('j')]: list_row += 1
+                elif key == ord(':'): edit_mode = "COMMAND"; cmd_bar.clear()
+                elif key == ord('/'): edit_mode = "INSERT"; cmd_bar.clear(); filter_text = ""
+                elif key == ord(' '): # Power Magic Leader
+                    win = draw_leader_menu(stdscr)
+                    if win:
+                        stdscr.timeout(-1) # Wait for subcommand
+                        action_key = stdscr.getch()
+                        stdscr.timeout(100) # Restore polling
+
+                        if 0 <= action_key <= 1114111 and chr(action_key) in LEADER_MAP:
+                            cmd = LEADER_MAP[chr(action_key)]
+                            if cmd == "manage": view_mode = "dashboard"
+                            elif cmd == "list": view_mode = "list"
+                            elif cmd in ["harvest", "sync", "push", "init", "deploy"]:
+                                execute_interactive_command(stdscr, cmd)
+                            else:
+                                active_proc.start(cmd)
+                        del win
+                elif key == 27: view_mode = "dashboard"
+                elif key in [10, 13] and skills: action_menu(stdscr, skills[list_row], current_library_path)
+
+        elif edit_mode == "INSERT":
+            if key == 27: edit_mode = "NORMAL"
+            else:
+                res = cmd_bar.handle_key(key, edit_mode)
+                filter_text = cmd_bar.buffer
+                if res == "EXECUTE": edit_mode = "NORMAL"
+
+        elif edit_mode == "COMMAND":
+            if key == 27: edit_mode = "NORMAL"; cmd_bar.clear()
+            else:
+                res = cmd_bar.handle_key(key, edit_mode)
+                if res == "EXECUTE":
+                    cmd = cmd_bar.buffer.strip()
+                    if cmd:
+                        try:
+                            base_cmd = cmd.split()[0]
+                            if base_cmd in ["harvest", "sync", "push", "init", "deploy"]:
+                                execute_interactive_command(stdscr, cmd)
+                            else:
+                                active_proc.start(cmd)
+                        except Exception as e:
+                             display_output_panel(stdscr, "Error", str(e))
+                    edit_mode = "NORMAL"; cmd_bar.clear()
 
 def run(library_path):
-    try:
-        curses.wrapper(main, library_path)
-    except Exception as e:
-        print(f"Error in TUI: {e}")
-        import traceback
-        traceback.print_exc()
+    curses.wrapper(main, library_path)
 
 if __name__ == "__main__":
-    # Test path logic if run directly
-    test_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "library")
-    run(test_path)
+    run("/Users/irfanali/.jcapy/library")
