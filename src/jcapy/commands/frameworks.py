@@ -618,7 +618,7 @@ def save_harvested_deploy(name, steps, lib_path):
 # ==========================================
 # RICH-DEPENDENT FRAMEWORK FEATURES (Apply/Merge)
 # ==========================================
-def apply_framework(framework_name, dry_run=False, context=None):
+def apply_framework(framework_name, dry_run=False, context=None, interactive=True):
     """Parses and executes bash blocks from a Framework File (Executable Knowledge)"""
     try:
         from rich.console import Console
@@ -684,7 +684,7 @@ def apply_framework(framework_name, dry_run=False, context=None):
                 continue
 
             # Execute as a single script to preserve context
-            if Prompt.ask("Execute this block?", choices=["y", "n"], default="y") == "y":
+            if not interactive or Prompt.ask("Execute this block?", choices=["y", "n"], default="y") == "y":
                 import tempfile
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as tmp:
                     tmp.write(f"#!/bin/zsh\nset -e\n{cmd_block}")
@@ -699,8 +699,10 @@ def apply_framework(framework_name, dry_run=False, context=None):
                         console.print(f"  [green]✔ Block {i} Success[/green]")
                     else:
                         console.print(f"[bold red]❌ Block {i} Failed (Exit Code {process.returncode})[/bold red]")
-                        if Prompt.ask("Continue anyway?", choices=["y", "n"], default="n") == "n":
+                        if interactive and Prompt.ask("Continue anyway?", choices=["y", "n"], default="n") == "n":
                             break
+                        if not interactive:
+                            break # Fail fast in non-interactive
                 finally:
                     if os.path.exists(tmp_path):
                         os.remove(tmp_path)

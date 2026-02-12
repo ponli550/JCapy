@@ -478,11 +478,35 @@ def setup_initial_persona():
     }
 
     config["current_persona"] = safe_name
+    config["operator_name"] = name # Save Operator Identity
     save_config(config)
 
     print(f"\n{GREEN}✔ Nice to meet you, {name}! Admin access granted.{RESET}")
     time.sleep(1)
     return safe_name
+
+def ensure_operator_identity():
+    """Security check for updates: Ensure we know who is operating."""
+    config = load_config()
+
+    # If we already have the operator name, we are good.
+    print(f"DEBUG: Config in ensure_operator_identity: {config}")
+    if "operator_name" in config:
+        return config["operator_name"]
+
+    # Security Prompt
+    print(f"\n{CYAN}Who is operating right now?{RESET}")
+    name = input(f"Enter your name (e.g. 'Irfan'): ").strip()
+
+    if not name:
+        name = "Operator"
+
+    config["operator_name"] = name
+    save_config(config)
+
+    print(f"{GREEN}✔ Identity confirmed: {name}.{RESET}")
+    time.sleep(0.5)
+    return name
 
 # ==========================================
 # BRAINSTORMING (AI) LOGIC

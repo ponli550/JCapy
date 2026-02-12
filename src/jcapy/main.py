@@ -22,6 +22,7 @@ MAGENTA = '\033[1;35m'
 BLUE = '\033[1;34m'
 WHITE = '\033[1;37m'
 RED = '\033[1;31m'
+BOLD = '\033[1m'
 RESET = '\033[0m'
 GREY = '\033[0;90m'
 
@@ -144,6 +145,10 @@ def main():
     undo_parser = subparsers.add_parser("undo", help="Undo last destructive action")
     undo_parser.add_argument("--list", action="store_true", dest="list_undo", help="List undo history")
 
+    # Recall Command (Phase 4: Memory)
+    recall_parser = subparsers.add_parser("recall", help="Semantic Search (Vector Memory)")
+    recall_parser.add_argument("query", nargs="+", help="Natural language query")
+
     # Fix Command
     fix_parser = subparsers.add_parser("fix", help="Rapid tactical code fix")
     fix_parser.add_argument("file", help="Path to file to fix")
@@ -179,15 +184,23 @@ def main():
     try:
         # Handling for no args
         if len(sys.argv) == 1:
-            config_path = os.path.join(os.getcwd(), ".jcapyrc")
-            global_config = os.path.expanduser("~/.jcapyrc")
-            # If completely new user
-            if not os.path.exists(config_path) and not os.path.exists(global_config):
+            # Check for standard config file
+            from jcapy.config import CONFIG_PATH
+            print(f"DEBUG: CONFIG_PATH='{CONFIG_PATH}'")
+            print(f"DEBUG: Checking {CONFIG_PATH}, exists={os.path.exists(CONFIG_PATH)}")
+            print("DEBUG: Calling ensure_operator_identity...")
+            ensure_operator_identity()
+            sys.exit("DEBUG EXIT - After ensure_operator_identity")
+
+            # If completely new user (no config exists)
+            print(f"DEBUG: Checking {CONFIG_PATH}, exists={os.path.exists(CONFIG_PATH)}")
+            if not os.path.exists(CONFIG_PATH):
                 # 1. Animations: Matrix Rain + Crystallizing Logo
                 try:
                     from jcapy.ui.animations import cinematic_intro, should_animate, typewriter_print
                     if should_animate():
-                        cinematic_intro()
+                        # cinematic_intro()
+                        pass
                         print("\n")
                         typewriter_print(f"{CYAN}Welcome to JCapy.{RESET}", speed=0.08)
                         time.sleep(0.5)
@@ -212,6 +225,11 @@ def main():
                         cinematic_intro()
                  except ImportError:
                     pass
+
+            # 2a. Security Check (ensure identity is known on updates)
+            from jcapy.commands.brain import ensure_operator_identity
+            print("DEBUG: Calling ensure_operator_identity...")
+            ensure_operator_identity()
 
             check_for_framework_updates()
             migrate_persona_libraries() # Auto-migrate
@@ -288,6 +306,36 @@ def main():
             run_mcp_server()
         elif cmd == "map":
             map_project_patterns(args.path)
+        elif cmd == "recall":
+            # 1. Initialize Memory
+            try:
+                from jcapy.memory import MemoryBank
+                bank = MemoryBank()
+
+                # Check if we need to sync (simplistic check: if empty)
+                if bank.collection.count() == 0:
+                    print(f"{YELLOW}🧠 Initializing Memory Bank (First Run)...{RESET}")
+                    bank.sync_library(get_active_library_path())
+
+                query = " ".join(args.query)
+                print(f"{CYAN}🔍 Recalling knowledge related to: '{query}'...{RESET}")
+
+                results = bank.recall(query, n_results=5)
+
+                if not results:
+                    print(f"{GREY}No relevant memories found.{RESET}")
+                else:
+                    for i, res in enumerate(results, 1):
+                        meta = res['metadata']
+                        score = res['distance'] # Lower is better in Chroma usually
+                        similarity = (1 - score) * 100 # Rough approx
+                        print(f"\n{i}. {BOLD}{meta['name']}{RESET} ( Relevance: {similarity:.1f}% )")
+                        print(f"   Shape: {meta['source']}")
+                        # print(f"   Excerpt: {res['content'][:100]}...")
+            except ImportError:
+                print(f"{RED}Error: 'chromadb' not installed. Run 'pip install chromadb' first.{RESET}")
+            except Exception as e:
+                print(f"{RED}Memory Error: {e}{RESET}")
         elif cmd == "suggest":
             # Suggestion Logic
             print(f"{CYAN}🤖 jcapy Recommendations:{RESET}")
