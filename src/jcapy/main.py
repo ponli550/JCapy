@@ -145,9 +145,14 @@ def main():
     undo_parser = subparsers.add_parser("undo", help="Undo last destructive action")
     undo_parser.add_argument("--list", action="store_true", dest="list_undo", help="List undo history")
 
-    # Recall Command (Phase 4: Memory)
+    # Recall Command (Phase 2: Retrieval)
     recall_parser = subparsers.add_parser("recall", help="Semantic Search (Vector Memory)")
     recall_parser.add_argument("query", nargs="+", help="Natural language query")
+
+    # Memorize Command (Phase 2: Ingestion)
+    memorize_parser = subparsers.add_parser("memorize", help="Ingest knowledge into Memory Bank")
+    memorize_parser.add_argument("--force", action="store_true", help="Clear memory before ingesting")
+    memorize_parser.add_argument("--path", help="Specific path to ingest (file or dir)", default=None)
 
     # Fix Command
     fix_parser = subparsers.add_parser("fix", help="Rapid tactical code fix")
@@ -186,21 +191,14 @@ def main():
         if len(sys.argv) == 1:
             # Check for standard config file
             from jcapy.config import CONFIG_PATH
-            print(f"DEBUG: CONFIG_PATH='{CONFIG_PATH}'")
-            print(f"DEBUG: Checking {CONFIG_PATH}, exists={os.path.exists(CONFIG_PATH)}")
-            print("DEBUG: Calling ensure_operator_identity...")
-            ensure_operator_identity()
-            sys.exit("DEBUG EXIT - After ensure_operator_identity")
 
             # If completely new user (no config exists)
-            print(f"DEBUG: Checking {CONFIG_PATH}, exists={os.path.exists(CONFIG_PATH)}")
             if not os.path.exists(CONFIG_PATH):
                 # 1. Animations: Matrix Rain + Crystallizing Logo
                 try:
                     from jcapy.ui.animations import cinematic_intro, should_animate, typewriter_print
                     if should_animate():
-                        # cinematic_intro()
-                        pass
+                        cinematic_intro()
                         print("\n")
                         typewriter_print(f"{CYAN}Welcome to JCapy.{RESET}", speed=0.08)
                         time.sleep(0.5)
@@ -228,7 +226,6 @@ def main():
 
             # 2a. Security Check (ensure identity is known on updates)
             from jcapy.commands.brain import ensure_operator_identity
-            print("DEBUG: Calling ensure_operator_identity...")
             ensure_operator_identity()
 
             check_for_framework_updates()
@@ -306,6 +303,35 @@ def main():
             run_mcp_server()
         elif cmd == "map":
             map_project_patterns(args.path)
+        elif cmd == "memorize":
+            try:
+                from jcapy.memory import MemoryBank, get_active_library_path
+                bank = MemoryBank()
+
+                paths = []
+                if args.path:
+                    paths = [args.path]
+                else:
+                    # Default: Ingest Skill Library + Docs (recursive in bank)
+                    lib_path = get_active_library_path()
+                    paths = [lib_path]
+
+                print(f"{CYAN}🧠 Memorizing Knowledge...{RESET}")
+                if args.force:
+                    print(f"{YELLOW}  • Force Clean enabled.{RESET}")
+
+                stats = bank.memorize(paths, clear_first=args.force)
+
+                print(f"\n{GREEN}✨ Update Complete:{RESET}")
+                print(f"  • Added: {stats['added']}")
+                print(f"  • Skipped: {stats['skipped']}")
+                print(f"  • Errors: {stats['errors']}")
+
+            except ImportError:
+                print(f"{RED}Error: 'chromadb' not installed.{RESET}")
+            except Exception as e:
+                 print(f"{RED}Memorize Error: {e}{RESET}")
+
         elif cmd == "recall":
             # 1. Initialize Memory
             try:

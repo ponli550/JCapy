@@ -490,7 +490,6 @@ def ensure_operator_identity():
     config = load_config()
 
     # If we already have the operator name, we are good.
-    print(f"DEBUG: Config in ensure_operator_identity: {config}")
     if "operator_name" in config:
         return config["operator_name"]
 
