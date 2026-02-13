@@ -6,7 +6,7 @@ from jcapy.config import load_config, save_config, DEFAULT_LIBRARY_PATH
 # Global State for Main Loop
 SKILL_UPDATES_AVAILABLE = False
 APP_UPDATE_AVAILABLE = None
-VERSION = "3.1.0"
+VERSION = "4.0.0"
 
 def check_for_app_updates():
     """Checks GitHub for the latest CLI Release Tag"""
