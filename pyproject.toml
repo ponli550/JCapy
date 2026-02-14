@@ -12,6 +12,7 @@ dependencies = [
     "rich>=13.0.0",
     "mcp>=1.2.0",
     "chromadb>=0.4.0",
+    "posthog>=3.0.0",
 ]
 
 [project.scripts]
@@ -19,3 +20,6 @@ jcapy = "jcapy.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[project.entry-points."jcapy.plugins"]
+# External plugins register here

@@ -93,7 +93,7 @@ Tests for theme colors, announce function, reduced motion.
 
 ```bash
 # Run all UX tests (from jcapy directory)
-cd /Users/irfanali/Desktop/JAAVISv2.0.0/jcapy
+cd .
 python -m pytest tests/ -v
 
 # Run specific module tests

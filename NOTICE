@@ -1,0 +1,10 @@
+JCapy
+Copyright 2026 IrfanSoftStudio
+
+This product includes software developed at
+jcapy (https://github.com/ponli550/jcapy).
+
+This product includes the following third-party libraries:
+- ChromaDB (Apache 2.0)
+- Rich (MIT)
+- MCP Python SDK (MIT)

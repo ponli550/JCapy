@@ -13,497 +13,7 @@ Return a Markdown document with:
 
 --- PROJECT CONTEXT ---
 
---- FILE: ./tests/test_feedback.py ---
-"""Tests for the feedback module (spinners, progress bars, banners)."""
-import pytest
-from unittest.mock import patch, MagicMock
-from jcapy.ui.ux import feedback
-
-
-class TestWithSpinner:
-    """Tests for the with_spinner decorator."""
-
-    def test_spinner_decorator_calls_function(self):
-        """Verify decorated function is called and returns result."""
-        @feedback.with_spinner("Testing...")
-        def sample_func():
-            return "success"
-
-        result = sample_func()
-        assert result == "success"
-
-    def test_spinner_in_quiet_mode_skips_output(self):
-        """Verify spinner is skipped in quiet mode."""
-        feedback.set_quiet_mode(True)
-        try:
-            @feedback.with_spinner("Should not show")
-            def sample_func():
-                return "done"
-
-            result = sample_func()
-            assert result == "done"
-        finally:
-            feedback.set_quiet_mode(False)
-
-
-class TestProgressBar:
-    """Tests for the progress_bar conte
-
---- FILE: ./tests/test_hints.py ---
-"""Tests for the hints module (typo suggestions, tutorial)."""
-import pytest
-import os
-import json
-import tempfile
-from unittest.mock import patch
-from jcapy.ui.ux.hints import suggest_command, show_hint, Tutorial, JCAPY_COMMANDS
-
-
-class TestSuggestCommand:
-    """Tests for the suggest_command function."""
-
-    def test_exact_match_not_suggested(self):
-        """Verify exact matches return empty (no suggestion needed)."""
-        # For exact matches, difflib won't suggest since it's already correct
-        # But our function will return it as a close match
-        commands = ["deploy", "delete", "doctor"]
-        suggestions = suggest_command("deploy", commands)
-        assert "deploy" in suggestions
-
-    def test_typo_suggests_correct_command(self):
-        """Verify typos suggest the correct command."""
-        commands = ["deploy", "delete", "doctor"]
-
-        suggestions = suggest_command("delpoy", commands)
-        assert "deploy" in suggestions
-
-        suggestions = suggest_com
-
---- FILE: ./tests/test_safety.py ---
-"""Tests for the safety module (undo stack, confirmations)."""
-import pytest
-import os
-import tempfile
-import shutil
-from unittest.mock import patch
-from jcapy.ui.ux.safety import UndoStack, confirm, require_dependency
-
-
-class TestUndoStack:
-    """Tests for the UndoStack class."""
-
-    @pytest.fixture
-    def temp_undo_dir(self, tmp_path):
-        """Create a temporary undo directory."""
-        undo_dir = tmp_path / "undo"
-        undo_dir.mkdir()
-        return str(undo_dir)
-
-    @pytest.fixture
-    def test_file(self, tmp_path):
-        """Create a test file for backup."""
-        test_file = tmp_path / "test_skill.md"
-        test_file.write_text("# Test Skill\nContent here")
-        return str(test_file)
-
-    def test_push_creates_backup(self, temp_undo_dir, test_file):
-        """Verify push creates a backup file."""
-        with patch('jcapy.ui.ux.safety.UNDO_DIR', temp_undo_dir):
-            with patch('jcapy.ui.ux.safety.UNDO_MANIFEST', os.path.join(temp_undo_dir, 'manifest.j
-
---- FILE: ./tests/__init__.py ---
-
-
---- FILE: ./tests/test_a11y.py ---
-"""Tests for the a11y module (themes, screen reader, reduced motion)."""
-import pytest
-import os
-from unittest.mock import patch
-from jcapy.ui.ux.a11y import (
-    THEMES, set_theme, get_theme, get_color,
-    is_reduced_motion, format_for_screen_reader, get_spinner_style
-)
-
-
-class TestThemes:
-    """Tests for theme management."""
-
-    def test_default_theme_exists(self):
-        """Verify default theme is defined."""
-        assert "default" in THEMES
-        assert "primary" in THEMES["default"]
-
-    def test_high_contrast_theme_exists(self):
-        """Verify high-contrast theme is defined."""
-        assert "high-contrast" in THEMES
-        assert "primary" in THEMES["high-contrast"]
-
-    def test_monochrome_theme_exists(self):
-        """Verify monochrome theme is defined."""
-        assert "monochrome" in THEMES
-
-    def test_set_theme_valid(self):
-        """Verify setting a valid theme works."""
-        original = get_theme()
-        try:
-            result = set_theme("high-con
-
---- FILE: ./docs/USER_WORKFLOW.md ---
-# JCapy User Workflow: Building a Project
-
-## Overview
-This document illustrates the complete user journey when building a project using JCapy CLI commands.
-
----
-
-## Terminology Reference
-
-| JCapy Term | Industry Standard | Description |
-|------------|-------------------|-------------|
-| Framework | Template/Scaffold | Reusable code pattern with executable steps |
-| Library | Knowledge Base | Collection of frameworks organized by domain |
-| Persona | Workspace/Profile | Isolated environment with custom library |
-| Harvest | Capture Pattern | Extract reusable code into a framework |
-| Apply | Deploy Template | Inject framework code into current project |
-| Brain | Repository | Personal or shared framework storage |
-
----
-
-## User Workflow Diagram
-
-```mermaid
-flowchart TD
-    subgraph SETUP["🚀 Setup Phase"]
-        A[Developer starts new project] --> B[jcapy init]
-        B --> C{Select Grade}
-        C -->|A: Production| D[Full CI/CD, Tests, Security]
-        C -->|B: Staging| E[Docker, 
-
---- FILE: ./docs/INSTALLATION.md ---
-# JCapy Installation Guide
-
-## Quick Install
-
-### Option 1: Homebrew (macOS - Recommended)
-```bash
-brew tap ponli550/jcapy
-brew install jcapy
-jcapy help
-```
-
-### Option 2: pip/pipx
-```bash
-pipx install jcapy
-# or
-pip install jcapy
-jcapy help
-```
-
----
-
-## Troubleshooting
-
-### "ModuleNotFoundError: No module named 'jcapy'"
-
-**Cause:** Multiple jcapy installations conflict. A dev `.venv` version may be overriding the system install.
-
-**Fix:**
-```bash
-# Check which jcapy is being used
-which jcapy
-
-# If it shows .venv path, deactivate or use absolute path:
-deactivate  # if in venv
-hash -r     # refresh shell PATH cache
-
-# Or use Homebrew version directly:
-/opt/homebrew/bin/jcapy help
-```
-
-### Removing Conflicting Installations
-```bash
-# Remove pipx version
-pipx uninstall jcapy
-
-# Remove pip version
-pip uninstall jcapy
-
-# Remove .venv (if in dev directory)
-rm -rf .venv/bin/jcapy
-
-# Verify only Homebrew remains
-which -a jcapy
-# Should show: /opt/homebrew/bin/jcapy
-```
-
----
-
-## For Developers
-
-
---- FILE: ./docs/plans/2026-02-11-gap-analysis-jcapy-vs-dataiku.md ---
-# JCapy vs Dataiku — Gap Analysis
-
-> **Purpose**: Honest assessment of how JCapy compares to Dataiku, what's actually comparable vs what's not, and what (if anything) is worth borrowing.
-
----
-
-## TL;DR Verdict
-
-**These are not competitors. They exist in completely different universes.**
-
-Dataiku is a **$2.4B enterprise AI platform** serving Fortune 500 companies at €50K–€250K/year. JCapy is a **free, CLI-based developer knowledge tool** built by one person for one person. Comparing them is like comparing a Swiss Army knife to an aircraft carrier — both are useful, neither replaces the other.
-
-The real question isn't "how far is the gap" — it's **"what ideas from Dataiku's architecture could make JCapy smarter without bloating it?"**
-
----
-
-## What Dataiku Actually Is
-
-| Dimension | Dataiku |
-|---|---|
-| **Category** | Enterprise AI/ML Platform (Gartner Magic Quadrant Leader) |
-| **Team** | ~1,800 employees, $400M+ raised |
-| **Pricing** | €50K–€250K/year enterprise licenses |
-| **Users*
-
---- FILE: ./docs/plans/2026-02-10-gap-analysis-jcapy-vs-clawdbot.md ---
-# JCapy vs Clawdbot (OpenClaw) — Gap Analysis
-
-> **Purpose**: Honest assessment of where JCapy stands relative to Clawdbot/OpenClaw, what's unique to JCapy, and what gaps matter most for a solo developer.
-
----
-
-## TL;DR Verdict
-
-**They're solving different problems.** Clawdbot is a *personal AI assistant gateway* (chat → action). JCapy is a *developer knowledge orchestrator* (skill library → project scaffolding). The "gap" isn't about catching up — it's about deciding which Clawdbot ideas are worth stealing.
-
----
-
-## Feature Comparison Matrix
-
-| Capability | JCapy | Clawdbot | Gap Severity |
-|---|---|---|---|
-| **CLI Interface** | ✅ Python argparse + Rich TUI | ✅ Node.js CLI | —  |
-| **Skill/Framework System** | ✅ Markdown-based, harvest/apply/merge | ✅ Markdown SKILL.md + marketplace | 🟡 Medium |
-| **Persona System** | ✅ Multi-persona with Git-backed libraries | ❌ Single identity | **JCapy wins** |
-| **Project Scaffolding** | ✅ Grade-aware init + deploy pipeline | ❌ Not a project tool
-
---- FILE: ./docs/plans/2026-02-11-jcapy-knowledge-lakehouse-design.md ---
-# JCapy Knowledge Architecture — The Lakehouse Lens
-
-> **Purpose**: Compare JCapy's knowledge storage architecture to the Data Warehouse / Data Lake / Data Lakehouse paradigms. Map the analogy, identify feature gaps, and quantify the improvement of a Lakehouse-inspired redesign.
-
----
-
-## Angle 1: JCapy as a Data Architecture Analogy
-
-### Where JCapy Sits Today
-
-JCapy's current knowledge system maps almost exactly to the **Data Warehouse** model:
-
-```mermaid
-graph TB
-    subgraph "JCapy Today = Data Warehouse Model"
-        A["Raw Knowledge<br/>(Docs, tutorials, blogs)"] -->|"jcapy harvest<br/>(Manual ETL)"| B["Structured Skills<br/>(.md with YAML frontmatter)"]
-        B --> C["Domain Folders<br/>(devops/, docs/, misc/)"]
-        C --> D["jcapy list / search<br/>(BI / Reports)"]
-        C --> E["jcapy apply<br/>(Execution)"]
-    end
-```
-
-| Data Warehouse Trait | JCapy Equivalent | Evidence |
-|---|---|---|
-| **Structured data only** | Skills must follow YAML frontmatter + markdown templ
-
---- FILE: ./docs/plans/2026-02-09-ux-enhancement.md ---
-# JCapy UI/UX Enhancement Implementation Plan
-
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-
-**Goal:** Implement a centralized UX module providing visual feedback, error recovery, discoverability, and accessibility features for JCapy CLI.
-
-**Architecture:** Create `ui/ux/` subpackage with 4 modules (`feedback.py`, `safety.py`, `hints.py`, `a11y.py`) plus shared config. Commands import UX helpers; all preferences stored in `~/.jcapyrc`.
-
-**Tech Stack:** Python 3.11+, Rich (already dependency), curses (stdlib), difflib (stdlib for typo matching)
-
----
-
-## Proposed Changes
-
-### UX Module Foundation
-
-#### [NEW] `src/jcapy/ui/ux/__init__.py`
-Package init exporting public API.
-
-#### [NEW] `src/jcapy/ui/ux/feedback.py`
-- `with_spinner(message)` decorator for slow operations
-- `progress_bar(title, total)` context manager
-- `show_success/error/warning(msg, hint=None)` banner functions
-- Respects `--quiet` flag and `reduced_motion` con
-
---- FILE: ./scripts/setup.sh ---
-#!/bin/bash
-set -e
-
-# jcapy Development Setup
-# Usage: ./scripts/setup.sh
-
-echo "🚀 JCapy Development Setup"
-echo "--------------------------------"
-
-# 1. Check Python Version
-PYTHON_VERSION=$(python3 --version 2>&1 | cut -d' ' -f2)
-echo "📦 Python Version: $PYTHON_VERSION"
-
-# 2. Create Virtual Environment (optional)
-if [ ! -d ".venv" ]; then
-    echo "📦 Creating virtual environment..."
-    python3 -m venv .venv
-    echo "✅ Virtual environment created at .venv"
-fi
-
-# 3. Activate Virtual Environment
-echo "🔧 Activating virtual environment..."
-source .venv/bin/activate
-
-# 4. Install in Development Mode
-echo "📦 Installing jcapy in development mode..."
-pip install -e .
-
-# 5. Install Rich Dependency
-pip install rich
-
-# 6. Verify Installation
-echo ""
-echo "🧪 Verifying installation..."
-which jcapy
-jcapy help
-
-echo ""
-echo "✅ Setup Complete!"
-echo "--------------------------------"
-echo "To use jcapy, activate the venv first:"
-echo "  source .venv/bin/activate"
-echo ""
-echo "Then run:"
-echo "  jc
-
---- FILE: ./scripts/publishPip.sh ---
-#!/bin/bash
-set -e
-
-# jcapy PyPI Release Automation
-# Usage: ./scripts/publishPip.sh
-#
-# Features:
-# - Auto-creates virtual environment if needed
-# - Pre-commit pending changes
-# - Version bump (patch/minor/major)
-# - Git tag + push
-# - Build wheel + sdist
-# - Upload to PyPI (TestPyPI or Production)
-
-echo "🐍 jcapy PyPI Release Protocol"
-echo "================================"
-
-cd "$(dirname "$0")/.."
-GITHUB_USER="ponli550"
-REPO_NAME="JCapy"
-
-# ==========================================
-# PHASE 0a: Virtual Environment Check
-# ==========================================
-
-if [ -z "$VIRTUAL_ENV" ]; then
-    echo ""
-    echo "🔧 No virtual environment detected."
-
-    if [ -d "venv" ]; then
-        echo "   Found existing venv/ directory."
-        echo "   Activating..."
-        source venv/bin/activate
-        echo "   ✔ Activated: $VIRTUAL_ENV"
-    else
-        echo "   Creating new virtual environment..."
-        python3 -m venv venv
-        source venv/bin/activate
-        echo "   ✔ Creat
-
---- FILE: ./scripts/publish.sh ---
-#!/bin/bash
-set -e
-
-# ============================================================================
-# jcapy Combined Release Automation (Secure Edition)
-# ============================================================================
-# Usage: ./scripts/publish.sh [OPTIONS]
-#
-# Options:
-#   --dry-run    Preview all commands without executing
-#   --force      Skip confirmation prompts (use with caution)
-#
-# Flow: Pip-First, Homebrew Opt-In
-#   Phase 0a: Virtual Environment Setup (upfront)
-#   Phase 0b: Security Checks (branch, clean tree, remote, version)
-#   Phase 0c: PyPI Credential Check (fail fast)
-#   Phase 1:  Pre-Commit Pending Changes
-#   Phase 2:  Version Bump
-#   Phase 3:  Tag & Push
-#   Phase 4:  PyPI Build & Upload (default path)
-#   Phase 5:  Homebrew Update (opt-in)
-#   Phase 6:  Summary
-# ============================================================================
-
-echo "🚀 jcapy Release Protocol (Secure Edition)"
-echo "============================================"
-
-cd "$(dirn
-
---- FILE: ./scripts/publishBrew.sh ---
-#!/bin/bash
-set -e
-
-# jcapy Release Automation (Complete Edition)
-# Usage: ./scripts/publish.sh
-#
-# Features:
-# - First-time GitHub repo setup
-# - Pre-commit pending changes
-# - Version bump (patch/minor/major)
-# - Git tag + push
-# - Homebrew tap update
-
-echo "🚀 jcapy Release Protocol"
-echo "================================"
-
-cd "$(dirname "$0")/.."
-REPO_NAME="homebrew-JCapy"
-GITHUB_USER="ponli550"
-
-# ==========================================
-# PHASE 0: First-Time Setup Check
-# ==========================================
-
-# Check if gh CLI is available (optional but recommended)
-HAS_GH=false
-if command -v gh &> /dev/null; then
-    HAS_GH=true
-fi
-
-# Check if remote exists
-if ! git remote get-url origin &> /dev/null; then
-    echo "⚠️  No remote 'origin' configured."
-    echo ""
-
-    if $HAS_GH; then
-        echo "🔧 GitHub CLI detected. Setting up..."
-
-        # Check if repo exists on GitHub
-        if gh repo view "$GITHUB_USER/$REPO_NAME" &> /dev/null; then
-            echo "📦 Found e
-
---- FILE: ./venv/lib/python3.14/site-packages/mdurl/_decode.py ---
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/mdurl/_decode.py ---
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -545,7 +55,7 @@ def decode(string: str, exclude: str = DECODE_DEFAULT_CHARS) -> str:
 def repl_func_with_cache(match: re.Match, cache: Sequence[str]) -> str:
     seq = match.
 
---- FILE: ./venv/lib/python3.14/site-packages/mdurl/_url.py ---
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/mdurl/_url.py ---
 from __future__ import annotations
 
 from typing import NamedTuple
@@ -562,7 +72,7 @@ class URL(NamedTuple):
     pathname: str | None
 
 
---- FILE: ./venv/lib/python3.14/site-packages/mdurl/__init__.py ---
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/mdurl/__init__.py ---
 __all__ = (
     "decode",
     "DECODE_DEFAULT_CHARS",
@@ -583,7 +93,7 @@ from mdurl._parse import url_parse as parse
 from mdurl._url import URL
 
 
---- FILE: ./venv/lib/python3.14/site-packages/mdurl/_format.py ---
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/mdurl/_format.py ---
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -613,7 +123,7 @@ def format(url: URL) -> str:  # noqa: A001
     return result
 
 
---- FILE: ./venv/lib/python3.14/site-packages/mdurl/_parse.py ---
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/mdurl/_parse.py ---
 # Copyright Joyent, Inc. and other Node contributors.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
@@ -634,7 +144,7 @@ def format(url: URL) -> str:  # noqa: A001
 # DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 # OT
 
---- FILE: ./venv/lib/python3.14/site-packages/mdurl/_encode.py ---
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/mdurl/_encode.py ---
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -672,432 +182,811 @@ def get_encode_cache(exclude: str) -> Sequence[str]:
 
     
 
---- FILE: ./venv/lib/python3.14/site-packages/packaging/tags.py ---
-# This file is dual licensed under the terms of the Apache License, Version
-# 2.0, and the BSD License. See the LICENSE file in the root of this repository
-# for complete details.
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip-25.3.dist-info/licenses/src/pip/_vendor/idna/LICENSE.md ---
+BSD 3-Clause License
+
+Copyright (c) 2013-2024, Kim Davies and contributors.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULA
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/__init__.py ---
+from __future__ import annotations
+
+__version__ = "25.3"
+
+
+def main(args: list[str] | None = None) -> int:
+    """This is an internal API only meant for use by pip's own console scripts.
+
+    For additional details, see https://github.com/pypa/pip/issues/7498.
+    """
+    from pip._internal.utils.entrypoints import _wrapper
+
+    return _wrapper(args)
+
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/__pip-runner__.py ---
+"""Execute exactly this copy of pip, within a different environment.
+
+This file is named as it is, to ensure that this module can't be imported via
+an import statement.
+"""
+
+# /!\ This version compatibility check section must be Python 2 compatible. /!\
+
+import sys
+
+# Copied from pyproject.toml
+PYTHON_REQUIRES = (3, 9)
+
+
+def version_str(version):  # type: ignore
+    return ".".join(str(v) for v in version)
+
+
+if sys.version_info[:2] < PYTHON_REQUIRES:
+    raise SystemExit(
+        "This version of pip does not support python {} (requires >={}).".format(
+            version_str(sys.version_info[:2]), version_str(PYTHON_REQUIRES)
+        )
+    )
+
+# From here on, we can use Python 3 features, but the syntax must remain
+# Python 2 compatible.
+
+import runpy  # noqa: E402
+from importlib.machinery import PathFinder  # noqa: E402
+from os.path import dirname  # noqa: E402
+
+PIP_SOURCES_ROOT = dirname(dirname(__file__))
+
+
+class PipImportRedirectingFinder:
+    @classmethod
+    def find_spec(self, f
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/__main__.py ---
+import os
+import sys
+
+# Remove '' and current working directory from the first entry
+# of sys.path, if present to avoid using current directory
+# in pip commands check, freeze, install, list and show,
+# when invoked as python -m pip <command>
+if sys.path[0] in ("", os.getcwd()):
+    sys.path.pop(0)
+
+# If we are running from a wheel, add the wheel to sys.path
+# This allows the usage python pip-*.whl/pip install pip-*.whl
+if __package__ == "":
+    # __file__ is pip-*.whl/pip/__main__.py
+    # first dirname call strips of '/__main__.py', second strips off '/pip'
+    # Resulting path is the name of the wheel itself
+    # Add that to sys.path so we can import pip
+    path = os.path.dirname(os.path.dirname(__file__))
+    sys.path.insert(0, path)
+
+if __name__ == "__main__":
+    from pip._internal.cli.main import main as _main
+
+    sys.exit(_main())
+
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/configuration.py ---
+"""Configuration management setup
+
+Some terminology:
+- name
+  As written in config files.
+- value
+  Value associated with a name
+- key
+  Name combined with it's section (section.name)
+- variant
+  A single word describing where the configuration key-value pair came from
+"""
 
 from __future__ import annotations
 
-import logging
-import platform
-import re
-import struct
-import subprocess
+import configparser
+import locale
+import os
 import sys
-import sysconfig
-from importlib.machinery import EXTENSION_SUFFIXES
-from typing import (
-    Any,
-    Iterable,
-    Iterator,
-    Sequence,
-    Tuple,
-    cast,
+from collections.abc import Iterable
+from typing import Any, NewType
+
+from pip._internal.exceptions import (
+    ConfigurationError,
+    ConfigurationFileCouldNotBeLoaded,
+)
+from pip._internal.utils import appdirs
+from pip._internal.utils.compat import WINDOWS
+from pip._internal.utils.logging import getLogger
+from pip._internal.utils.misc import ensure_dir, enum
+
+RawConfigParser = configparser.RawConfigParser  # Shorthand
+Kind = NewType("Kind", str)
+
+CONFIG_BASENAME = "pip.ini" if WINDOWS else "pip.conf"
+ENV_NAMES_IGNORED = "version", "help"
+
+# The kinds of configurations there are.
+kinds = enum(
+    USER="user",  # User Speci
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/pyproject.py ---
+from __future__ import annotations
+
+import os
+from collections import namedtuple
+from typing import Any
+
+from pip._vendor.packaging.requirements import InvalidRequirement
+
+from pip._internal.exceptions import (
+    InstallationError,
+    InvalidPyProjectBuildRequires,
+    MissingPyProjectBuildRequires,
+)
+from pip._internal.utils.compat import tomllib
+from pip._internal.utils.packaging import get_requirement
+
+
+def _is_list_of_str(obj: Any) -> bool:
+    return isinstance(obj, list) and all(isinstance(item, str) for item in obj)
+
+
+def make_pyproject_path(unpacked_source_directory: str) -> str:
+    return os.path.join(unpacked_source_directory, "pyproject.toml")
+
+
+BuildSystemDetails = namedtuple(
+    "BuildSystemDetails", ["requires", "backend", "check", "backend_path"]
 )
 
-from . import _manylinux, _musllinux
+
+def load_pyproject_toml(
+    pyproject_toml: str, setup_py: str, req_name: str
+) -> BuildSystemDetails:
+    """Load the pyproject.toml file.
+
+    Parameters:
+        pyproject_toml - Location of the project's pyproject.
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/cache.py ---
+"""Cache Management"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import os
+from pathlib import Path
+from typing import Any
+
+from pip._vendor.packaging.tags import Tag, interpreter_name, interpreter_version
+from pip._vendor.packaging.utils import canonicalize_name
+
+from pip._internal.exceptions import InvalidWheelFilename
+from pip._internal.models.direct_url import DirectUrl
+from pip._internal.models.link import Link
+from pip._internal.models.wheel import Wheel
+from pip._internal.utils.temp_dir import TempDirectory, tempdir_kinds
+from pip._internal.utils.urls import path_to_url
 
 logger = logging.getLogger(__name__)
 
-PythonVersion = Sequence[int]
-AppleVersion = Tuple[int, int]
-
-INTERPRETER_SHORT_NAMES: dict[str, str] = {
-    "python": "py",  # Generic.
-    "cpython": "cp",
-    "pypy": "pp",
-    "ironpython": "ip",
-    "jython": "jy",
-}
+ORIGIN_JSON_NAME = "origin.json"
 
 
-_32_BIT_INTERPRETER = struct.calcsize("P") == 4
+def _hash_dict(d: dict[str, str]) -> str:
+    """Return a stable sha224 of a dictionary."""
+    s = json.dumps(d, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha224(s.encode("ascii")).hexdigest()
 
 
-class Tag:
+class Cache:
+    """An abstract class - provides cache directories for dat
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/__init__.py ---
+from __future__ import annotations
+
+from pip._internal.utils import _log
+
+# init_logging() must be called before any call to logging.getLogger()
+# which happens at import of most modules.
+_log.init_logging()
+
+
+def main(args: list[str] | None = None) -> int:
+    """This is preserved for old console scripts that may still be referencing
+    it.
+
+    For additional details, see https://github.com/pypa/pip/issues/7498.
     """
-    A representation of the tag triple for a wheel.
+    from pip._internal.utils.entrypoints import _wrapper
 
-    Instances are considered immutable and thus are hashable. Equality checking
-    is also supported.
-    """
+    return _wrapper(args)
 
 
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/exceptions.py ---
+"""Exceptions used throughout package.
 
---- FILE: ./venv/lib/python3.14/site-packages/packaging/_musllinux.py ---
-"""PEP 656 support.
-
-This module implements logic to detect if the currently running Python is
-linked against musl, and what musl version is used.
+This module MUST NOT try to import from anything within `pip._internal` to
+operate. This is expected to be importable from any/all files within the
+subpackage and, thus, should not depend on them.
 """
 
 from __future__ import annotations
 
-import functools
+import configparser
+import contextlib
+import locale
+import logging
+import pathlib
 import re
+import sys
+from collections.abc import Iterator
+from itertools import chain, groupby, repeat
+from typing import TYPE_CHECKING, Literal
+
+from pip._vendor.packaging.requirements import InvalidRequirement
+from pip._vendor.packaging.version import InvalidVersion
+from pip._vendor.rich.console import Console, ConsoleOptions, RenderResult
+from pip._vendor.rich.markup import escape
+from pip._vendor.rich.text import Text
+
+if TYPE_CHECKING:
+    from hashlib import _Hash
+
+    from pip._vendor.requests.models import Request, Response
+
+    from pip._internal.metadata import BaseDistribution
+    from pip._internal.network.download impor
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/main.py ---
+from __future__ import annotations
+
+
+def main(args: list[str] | None = None) -> int:
+    """This is preserved for old console scripts that may still be referencing
+    it.
+
+    For additional details, see https://github.com/pypa/pip/issues/7498.
+    """
+    from pip._internal.utils.entrypoints import _wrapper
+
+    return _wrapper(args)
+
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/wheel_builder.py ---
+"""Orchestrator for building wheels from InstallRequirements."""
+
+from __future__ import annotations
+
+import logging
+import os.path
+import re
+from collections.abc import Iterable
+from tempfile import TemporaryDirectory
+
+from pip._vendor.packaging.utils import canonicalize_name, canonicalize_version
+from pip._vendor.packaging.version import InvalidVersion, Version
+
+from pip._internal.cache import WheelCache
+from pip._internal.exceptions import InvalidWheelFilename, UnsupportedWheel
+from pip._internal.metadata import FilesystemWheel, get_wheel_distribution
+from pip._internal.models.link import Link
+from pip._internal.models.wheel import Wheel
+from pip._internal.operations.build.wheel import build_wheel_pep517
+from pip._internal.operations.build.wheel_editable import build_wheel_editable
+from pip._internal.req.req_install import InstallRequirement
+from pip._internal.utils.logging import indent_log
+from pip._internal.utils.misc import ensure_dir, hash_file
+from pip._internal.utils.urls imp
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/self_outdated_check.py ---
+from __future__ import annotations
+
+import datetime
+import functools
+import hashlib
+import json
+import logging
+import optparse
+import os.path
+import sys
+from dataclasses import dataclass
+from typing import Any, Callable
+
+from pip._vendor.packaging.version import Version
+from pip._vendor.packaging.version import parse as parse_version
+from pip._vendor.rich.console import Group
+from pip._vendor.rich.markup import escape
+from pip._vendor.rich.text import Text
+
+from pip._internal.index.collector import LinkCollector
+from pip._internal.index.package_finder import PackageFinder
+from pip._internal.metadata import get_default_environment
+from pip._internal.models.selection_prefs import SelectionPreferences
+from pip._internal.network.session import PipSession
+from pip._internal.utils.compat import WINDOWS
+from pip._internal.utils.entrypoints import (
+    get_best_invocation_for_this_pip,
+    get_best_invocation_for_this_python,
+)
+from pip._internal.utils.filesystem import (
+    adjacent_tmp_fil
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/build_env.py ---
+"""Build Environment used for isolation during sdist building"""
+
+from __future__ import annotations
+
+import logging
+import os
+import pathlib
+import site
+import sys
+import textwrap
+from collections import OrderedDict
+from collections.abc import Iterable
+from types import TracebackType
+from typing import TYPE_CHECKING, Protocol, TypedDict
+
+from pip._vendor.packaging.version import Version
+
+from pip import __file__ as pip_location
+from pip._internal.cli.spinners import open_spinner
+from pip._internal.locations import get_platlib, get_purelib, get_scheme
+from pip._internal.metadata import get_default_environment, get_environment
+from pip._internal.utils.deprecation import deprecated
+from pip._internal.utils.logging import VERBOSE
+from pip._internal.utils.packaging import get_requirement
+from pip._internal.utils.subprocess import call_subprocess
+from pip._internal.utils.temp_dir import TempDirectory, tempdir_kinds
+
+if TYPE_CHECKING:
+    from pip._internal.index.package_finder import Packag
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/network/auth.py ---
+"""Network Authentication Helpers
+
+Contains interface (MultiDomainBasicAuth) and associated glue code for
+providing credentials in the context of network requests.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import shutil
+import subprocess
+import sysconfig
+import typing
+import urllib.parse
+from abc import ABC, abstractmethod
+from functools import cache
+from os.path import commonprefix
+from pathlib import Path
+from typing import Any, NamedTuple
+
+from pip._vendor.requests.auth import AuthBase, HTTPBasicAuth
+from pip._vendor.requests.models import Request, Response
+from pip._vendor.requests.utils import get_netrc_auth
+
+from pip._internal.utils.logging import getLogger
+from pip._internal.utils.misc import (
+    ask,
+    ask_input,
+    ask_password,
+    remove_auth_from_url,
+    split_auth_netloc_from_url,
+)
+from pip._internal.vcs.versioncontrol import AuthInfo
+
+logger = getLogger(__name__)
+
+KEYRING_DISABLED = False
+
+
+class Credentials(NamedTuple):
+    url: str
+    use
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/network/xmlrpc.py ---
+"""xmlrpclib.Transport implementation"""
+
+import logging
+import urllib.parse
+import xmlrpc.client
+from typing import TYPE_CHECKING
+
+from pip._internal.exceptions import NetworkConnectionError
+from pip._internal.network.session import PipSession
+from pip._internal.network.utils import raise_for_status
+
+if TYPE_CHECKING:
+    from xmlrpc.client import _HostType, _Marshallable
+
+    from _typeshed import SizedBuffer
+
+logger = logging.getLogger(__name__)
+
+
+class PipXmlrpcTransport(xmlrpc.client.Transport):
+    """Provide a `xmlrpclib.Transport` implementation via a `PipSession`
+    object.
+    """
+
+    def __init__(
+        self, index_url: str, session: PipSession, use_datetime: bool = False
+    ) -> None:
+        super().__init__(use_datetime)
+        index_parts = urllib.parse.urlparse(index_url)
+        self._scheme = index_parts.scheme
+        self._session = session
+
+    def request(
+        self,
+        host: "_HostType",
+        handler: str,
+        request_body: "SizedBuffer",
+   
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/network/download.py ---
+"""Download files with progress indicators."""
+
+from __future__ import annotations
+
+import email.message
+import logging
+import mimetypes
+import os
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
+from http import HTTPStatus
+from typing import BinaryIO
+
+from pip._vendor.requests import PreparedRequest
+from pip._vendor.requests.models import Response
+from pip._vendor.urllib3 import HTTPResponse as URLlib3Response
+from pip._vendor.urllib3._collections import HTTPHeaderDict
+from pip._vendor.urllib3.exceptions import ReadTimeoutError
+
+from pip._internal.cli.progress_bars import BarType, get_download_progress_renderer
+from pip._internal.exceptions import IncompleteDownloadError, NetworkConnectionError
+from pip._internal.models.index import PyPI
+from pip._internal.models.link import Link
+from pip._internal.network.cache import SafeFileCache, is_from_cache
+from pip._internal.network.session import CacheControlAdapter, PipSession
+from pip._internal.network.utils i
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/network/session.py ---
+"""PipSession and supporting code, containing all pip-specific
+network request configuration and behavior.
+"""
+
+from __future__ import annotations
+
+import email.utils
+import functools
+import io
+import ipaddress
+import json
+import logging
+import mimetypes
+import os
+import platform
+import shutil
 import subprocess
 import sys
-from typing import Iterator, NamedTuple, Sequence
-
-from ._elffile import ELFFile
-
-
-class _MuslVersion(NamedTuple):
-    major: int
-    minor: int
-
-
-def _parse_musl_version(output: str) -> _MuslVersion | None:
-    lines = [n for n in (n.strip() for n in output.splitlines()) if n]
-    if len(lines) < 2 or lines[0][:4] != "musl":
-        return None
-    m = re.match(r"Version (\d+)\.(\d+)", lines[1])
-    if not m:
-        return None
-    return _MuslVersion(major=int(m.group(1)), minor=int(m.group(2)))
-
-
-@functools.lru_cache
-def _get_musl_version(executable: str) -> _MuslVersion | None:
-    """Detect currently-running musl runtime version.
-
-    This is done by checking the specified executable's dynamic linking
-    information, and invoking the loade
-
---- FILE: ./venv/lib/python3.14/site-packages/packaging/metadata.py ---
-from __future__ import annotations
-
-import email.feedparser
-import email.header
-import email.message
-import email.parser
-import email.policy
-import keyword
-import pathlib
-import sys
-import typing
-from typing import (
-    Any,
-    Callable,
-    Generic,
-    Literal,
-    TypedDict,
-    cast,
-)
-
-from . import licenses, requirements, specifiers, utils
-from . import version as version_module
-
-if typing.TYPE_CHECKING:
-    from .licenses import NormalizedLicenseExpression
-
-T = typing.TypeVar("T")
-
-
-if sys.version_info >= (3, 11):  # pragma: no cover
-    ExceptionGroup = ExceptionGroup  # noqa: F821
-else:  # pragma: no cover
-
-    class ExceptionGroup(Exception):
-        """A minimal implementation of :external:exc:`ExceptionGroup` from Python 3.11.
-
-        If :external:exc:`ExceptionGroup` is already defined by Python itself,
-        that version is used instead.
-        """
-
-        message: str
-        exceptions: list[Exception]
-
-        def __init__(self, message: str, exceptions: list[Ex
-
---- FILE: ./venv/lib/python3.14/site-packages/packaging/version.py ---
-# This file is dual licensed under the terms of the Apache License, Version
-# 2.0, and the BSD License. See the LICENSE file in the root of this repository
-# for complete details.
-"""
-.. testsetup::
-
-    from packaging.version import parse, Version
-"""
-
-from __future__ import annotations
-
-import re
-import sys
-import typing
-from typing import (
-    Any,
-    Callable,
-    Literal,
-    NamedTuple,
-    SupportsInt,
-    Tuple,
-    TypedDict,
-    Union,
-)
-
-from ._structures import Infinity, InfinityType, NegativeInfinity, NegativeInfinityType
-
-if typing.TYPE_CHECKING:
-    from typing_extensions import Self, Unpack
-
-if sys.version_info >= (3, 13):  # pragma: no cover
-    from warnings import deprecated as _deprecated
-elif typing.TYPE_CHECKING:
-    from typing_extensions import deprecated as _deprecated
-else:  # pragma: no cover
-    import functools
-    import warnings
-
-    def _deprecated(message: str) -> object:
-        def decorator(func: object) -> object:
-            @functools.wraps(func
-
---- FILE: ./venv/lib/python3.14/site-packages/packaging/pylock.py ---
-from __future__ import annotations
-
-import dataclasses
-import logging
-import re
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from datetime import datetime
+import urllib.parse
+import warnings
+from collections.abc import Generator, Mapping, Sequence
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
-    Protocol,
-    TypeVar,
+    Optional,
+    Union,
 )
 
-from .markers import Marker
-from .specifiers import SpecifierSet
-from .utils import NormalizedName, is_normalized_name
-from .version import Version
+from pip._vendor import requests, urllib3
+from pip._vendor.cachecontrol import CacheControlAdapter as _BaseCacheControlAdapter
+from pip._vendor.requests.adapters import DEFAULT_POOLBLOCK, BaseAdapter
+from pip._vendor.requests.adapters import HTTPAdapter as _BaseHTTPAdapter
+from pip._vendor.requests.models import PreparedRequest, Response
+from pip._vendor.requests.structures import CaseInsensitiveDict
+from pip._vendor.urllib3.connectionpool import ConnectionPool
+from pip._vendor.urllib3.exceptions impo
 
-if TYPE_CHECKING:  # pragma: no cover
-    from pathlib import Path
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/network/cache.py ---
+"""HTTP cache implementation."""
 
-    from typing_extensions import Self
+from __future__ import annotations
 
-_logger = logging.getLogger(__name__)
+import os
+import shutil
+from collections.abc import Generator
+from contextlib import contextmanager
+from datetime import datetime
+from typing import Any, BinaryIO, Callable
+
+from pip._vendor.cachecontrol.cache import SeparateBodyBaseCache
+from pip._vendor.cachecontrol.caches import SeparateBodyFileCache
+from pip._vendor.requests.models import Response
+
+from pip._internal.utils.filesystem import (
+    adjacent_tmp_file,
+    copy_directory_permissions,
+    replace,
+)
+from pip._internal.utils.misc import ensure_dir
+
+
+def is_from_cache(response: Response) -> bool:
+    return getattr(response, "from_cache", False)
+
+
+@contextmanager
+def suppressed_cache_errors() -> Generator[None, None, None]:
+    """If we can't access the cache then we can just skip caching and process
+    requests as if caching wasn't enabled.
+    """
+    try:
+        yield
+    except OSError:
+        pass
+
+
+class SafeFileCache(SeparateBodyBaseCache):
+  
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/network/__init__.py ---
+"""Contains purely network-related utilities."""
+
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/network/utils.py ---
+from collections.abc import Generator
+
+from pip._vendor.requests.models import Response
+
+from pip._internal.exceptions import NetworkConnectionError
+
+# The following comments and HTTP headers were originally added by
+# Donald Stufft in git commit 22c562429a61bb77172039e480873fb239dd8c03.
+#
+# We use Accept-Encoding: identity here because requests defaults to
+# accepting compressed responses. This breaks in a variety of ways
+# depending on how the server is configured.
+# - Some servers will notice that the file isn't a compressible file
+#   and will leave the file alone and with an empty Content-Encoding
+# - Some servers will notice that the file is already compressed and
+#   will leave the file alone, adding a Content-Encoding: gzip header
+# - Some servers won't notice anything at all and will take a file
+#   that's already been compressed and compress it again, and set
+#   the Content-Encoding: gzip header
+# By setting this to request only the identity encoding we're hoping
+# to elimin
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/network/lazy_wheel.py ---
+"""Lazy ZIP over HTTP"""
+
+from __future__ import annotations
+
+__all__ = ["HTTPRangeRequestUnsupported", "dist_from_wheel_url"]
+
+from bisect import bisect_left, bisect_right
+from collections.abc import Generator
+from contextlib import contextmanager
+from tempfile import NamedTemporaryFile
+from typing import Any
+from zipfile import BadZipFile, ZipFile
+
+from pip._vendor.packaging.utils import NormalizedName
+from pip._vendor.requests.models import CONTENT_CHUNK_SIZE, Response
+
+from pip._internal.metadata import BaseDistribution, MemoryWheel, get_wheel_distribution
+from pip._internal.network.session import PipSession
+from pip._internal.network.utils import HEADERS, raise_for_status, response_chunks
+
+
+class HTTPRangeRequestUnsupported(Exception):
+    pass
+
+
+def dist_from_wheel_url(
+    name: NormalizedName, url: str, session: PipSession
+) -> BaseDistribution:
+    """Return a distribution object from the given wheel URL.
+
+    This uses HTTP range requests to only fetch the portion of the whee
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/utils/logging.py ---
+from __future__ import annotations
+
+import contextlib
+import errno
+import logging
+import logging.handlers
+import os
+import sys
+import threading
+from collections.abc import Generator
+from dataclasses import dataclass
+from io import TextIOWrapper
+from logging import Filter
+from typing import Any, ClassVar
+
+from pip._vendor.rich.console import (
+    Console,
+    ConsoleOptions,
+    ConsoleRenderable,
+    RenderableType,
+    RenderResult,
+    RichCast,
+)
+from pip._vendor.rich.highlighter import NullHighlighter
+from pip._vendor.rich.logging import RichHandler
+from pip._vendor.rich.segment import Segment
+from pip._vendor.rich.style import Style
+
+from pip._internal.utils._log import VERBOSE, getLogger
+from pip._internal.utils.compat import WINDOWS
+from pip._internal.utils.deprecation import DEPRECATION_MSG_PREFIX
+from pip._internal.utils.misc import ensure_dir
+
+_log_state = threading.local()
+_stdout_console = None
+_stderr_console = None
+subprocess_logger = getLogger("pip.subprocessor")
+
+
+clas
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/utils/misc.py ---
+from __future__ import annotations
+
+import errno
+import getpass
+import hashlib
+import logging
+import os
+import posixpath
+import shutil
+import stat
+import sys
+import sysconfig
+import urllib.parse
+from collections.abc import Generator, Iterable, Iterator, Mapping, Sequence
+from dataclasses import dataclass
+from functools import partial
+from io import StringIO
+from itertools import filterfalse, tee, zip_longest
+from pathlib import Path
+from types import FunctionType, TracebackType
+from typing import (
+    Any,
+    BinaryIO,
+    Callable,
+    Optional,
+    TextIO,
+    TypeVar,
+    cast,
+)
+
+from pip._vendor.packaging.requirements import Requirement
+from pip._vendor.pyproject_hooks import BuildBackendHookCaller
+
+from pip import __version__
+from pip._internal.exceptions import CommandError, ExternallyManagedEnvironment
+from pip._internal.locations import get_major_minor_version
+from pip._internal.utils.compat import WINDOWS
+from pip._internal.utils.retry import retry
+from pip._internal.utils.
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/utils/egg_link.py ---
+from __future__ import annotations
+
+import os
+import re
+import sys
+
+from pip._internal.locations import site_packages, user_site
+from pip._internal.utils.virtualenv import (
+    running_under_virtualenv,
+    virtualenv_no_global,
+)
 
 __all__ = [
-    "Package",
-    "PackageArchive",
-    "PackageDirectory",
-    "PackageSdist",
-    "PackageVcs",
-    "PackageWheel",
-    "Pylock",
-    "PylockUnsupportedVersionError",
-    "PylockValidationError",
-    "is_valid_pylock_path",
+    "egg_link_path_from_sys_path",
+    "egg_link_path_from_location",
 ]
 
-_T = TypeVar("_T")
-_T2 = TypeVar("_T2")
 
-
-class _FromMappingProtocol(Protocol):  # pragma: no cover
-    @classmethod
-    def _from_dict(cls, d: Mapping[str, Any]) -> Self: ...
-
-
-_
-
---- FILE: ./venv/lib/python3.14/site-packages/packaging/__init__.py ---
-# This file is dual licensed under the terms of the Apache License, Version
-# 2.0, and the BSD License. See the LICENSE file in the root of this repository
-# for complete details.
-
-__title__ = "packaging"
-__summary__ = "Core utilities for Python packages"
-__uri__ = "https://github.com/pypa/packaging"
-
-__version__ = "26.0"
-
-__author__ = "Donald Stufft and individual contributors"
-__email__ = "donald@stufft.io"
-
-__license__ = "BSD-2-Clause or Apache-2.0"
-__copyright__ = f"2014 {__author__}"
-
-
---- FILE: ./venv/lib/python3.14/site-packages/packaging/_parser.py ---
-"""Handwritten parser of dependency specifiers.
-
-The docstring for each __parse_* function contains EBNF-inspired grammar representing
-the implementation.
-"""
-
-from __future__ import annotations
-
-import ast
-from typing import List, Literal, NamedTuple, Sequence, Tuple, Union
-
-from ._tokenizer import DEFAULT_RULES, Tokenizer
-
-
-class Node:
-    __slots__ = ("value",)
-
-    def __init__(self, value: str) -> None:
-        self.value = value
-
-    def __str__(self) -> str:
-        return self.value
-
-    def __repr__(self) -> str:
-        return f"<{self.__class__.__name__}({self.value!r})>"
-
-    def serialize(self) -> str:
-        raise NotImplementedError
-
-
-class Variable(Node):
-    __slots__ = ()
-
-    def serialize(self) -> str:
-        return str(self)
-
-
-class Value(Node):
-    __slots__ = ()
-
-    def serialize(self) -> str:
-        return f'"{self}"'
-
-
-class Op(Node):
-    __slots__ = ()
-
-    def serialize(self) -> str:
-        return str(self)
-
-
-MarkerLogical = Literal["and", "or"]
-MarkerVa
-
---- FILE: ./venv/lib/python3.14/site-packages/packaging/utils.py ---
-# This file is dual licensed under the terms of the Apache License, Version
-# 2.0, and the BSD License. See the LICENSE file in the root of this repository
-# for complete details.
-
-from __future__ import annotations
-
-import re
-from typing import NewType, Tuple, Union, cast
-
-from .tags import Tag, parse_tag
-from .version import InvalidVersion, Version, _TrimmedRelease
-
-BuildTag = Union[Tuple[()], Tuple[int, str]]
-NormalizedName = NewType("NormalizedName", str)
-
-
-class InvalidName(ValueError):
+def _egg_link_names(raw_name: str) -> list[str]:
     """
-    An invalid distribution name; users should refer to the packaging user guide.
+    Convert a Name metadata value to a .egg-link name, by applying
+    the same substitution as pkg_resources's safe_name function.
+    Note: we cannot use canonicalize_name because it has a different logic.
+
+    We also look for the raw name (without normalization) as setuptools 69 changed
+    the way it names .egg-link files (https://github.com/pypa/setuptools/issues/4167).
     """
+    return [
+        re.sub("[^A-Za-z0-9.]+", "-", raw_name) + ".egg-link",
+        f"{raw_name}.egg-link",
+    ]
 
 
-class InvalidWheelFilename(ValueError):
+def egg_link_path_from_sys_path(raw_name: str) -> str | None:
     """
-    An invalid wheel filename was found, users should refer to PEP 427.
-    """
+    Look for a .egg-link file for project name, by 
+
+--- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/utils/compat.py ---
+"""Stuff that differs in different Python versions and platform
+distributions."""
+
+import importlib.resources
+import logging
+import os
+import sys
+from typing import IO
+
+__all__ = ["get_path_uid", "stdlib_pkgs", "tomllib", "WINDOWS"]
 
 
-class InvalidSdistFilename(ValueError):
-    """
-    An invalid sdist filename was found, users should refer to the packaging user guide.
-    """
+logger = logging.getLogger(__name__)
 
 
-# Core metadata spec for `Name`
-_validate_regex = re.compile(r"[A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9]", re.IGNORECASE)
-_normali
+def has_tls() -> bool:
+    try:
+        import _ssl  # noqa: F401  # ignore unused
 
---- FILE: ./venv/lib/python3.14/site-packages/packaging/requirements.py ---
-# This file is dual licensed under the terms of the Apache License, Version
-# 2.0, and the BSD License. See the LICENSE file in the root of this repository
-# for complete details.
-from __future__ import annotations
-
-from typing import Iterator
-
-from ._parser import parse_requirement as _parse_requirement
-from ._tokenizer import ParserSyntaxError
-from .markers import Marker, _normalize_extra_values
-from .specifiers import SpecifierSet
-from .utils import canonicalize_name
-
-
-class InvalidRequirement(ValueError):
-    """
-    An invalid requirement was found, users should refer to PEP 508.
-    """
-
-
-class Requirement:
-    """Parse a requirement.
-
-    Parse a given requirement string into its parts, such as name, specifier,
-    URL, and extras. Raises InvalidRequirement on a badly-formed requirement
-    string.
-    """
-
-    # TODO: Can we test whether something is contained within a requirement?
-    #       If so how do we do that? Do we need to test against the _name_ of
-    #       the thi
-
---- FILE: ./venv/lib/python3.14/site-packages/packaging/_structures.py ---
-# This file is dual licensed under the terms of the Apache License, Version
-# 2.0, and the BSD License. See the LICENSE file in the root of this repository
-# for complete details.
-
-import typing
-
-
-@typing.final
-class InfinityType:
-    __slots__ = ()
-
-    def __repr__(self) -> str:
-        return "Infinity"
-
-    def __hash__(self) -> int:
-        return hash(repr(self))
-
-    def __lt__(self, other: object) -> bool:
-        return False
-
-    def __le__(self, other: object) -> bool:
-        return False
-
-    def __eq__(self, other: object) -> bool:
-        return isinstance(other, self.__class__)
-
-    def __gt__(self, other: object) -> bool:
         return True
+    except ImportError:
+        pass
 
-    def __ge__(self, other: object) -> bool:
-        return True
+    from pip._vendor.urllib3.util import IS_PYOPENSSL
 
-    def __neg__(self: object) -> "NegativeInfinityType":
-        return NegativeInfinity
-
-
-Infinity = InfinityType()
+    return IS_PYOPENSSL
 
 
-@typing.final
-class NegativeInfinityType:
-    __slots__ = ()
+def get_path_uid(path: str) -> int:
+    """
+    Return path's uid.
 
-    def __repr__(self) -> str:
-        return "-Infinity"
+    Does not follow symlinks:
+        https://github.com/pypa/pip/pull/935#discussion_r5307003
 
-    def __hash__(self) -> 
+    Placed this function in compat due to differences on AIX and
+    Jython, that should eventually go away.
+
+    :raises OSError: When path is a symlink or can't be read.
+    """
+    if hasattr(os, "O_NOFOLLOW"):
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        file_uid = os.fstat(fd).st_uid
+        os.close(fd)
+    else:
 

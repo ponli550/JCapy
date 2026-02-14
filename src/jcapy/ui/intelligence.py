@@ -1,7 +1,9 @@
 import re
 import threading
 import time
+
 from collections import deque
+from jcapy.telemetry import get_telemetry
 
 class Alert:
     def __init__(self, tier, message, suggestion, action_cmd=None):
@@ -76,6 +78,17 @@ class AutonomousObserver(threading.Thread):
                         if found_alerts:
                             with self.lock:
                                 self.active_alerts.extend(found_alerts)
+
+                            # Telemetry: Shadow Mode Logging
+                            # Log that we found an alert. We don't know user action yet,
+                            # but we record the "suggestion opportunity"
+                            telemetry = get_telemetry()
+                            for alert in found_alerts:
+                                telemetry.capture_shadow_mode(
+                                    context=f"Log Pattern Match: {alert.message}",
+                                    suggestion=alert.suggestion,
+                                    user_action="PENDING" # We don't track the fix execution yet here
+                                )
 
                     self.last_index = len(current_output)
 

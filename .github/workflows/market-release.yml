@@ -1,0 +1,52 @@
+name: Market Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write # For Trusted Publishing to PyPI
+
+jobs:
+  pypi-publish:
+    name: Upload release to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/jcapy
+    permissions:
+      id-token: write # IMPORTANT: this permission is mandatory for trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build dependencies
+        run: pip install build
+
+      - name: Build distribution
+        run: python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # with:
+        # repository-url: https://test.pypi.org/legacy/ # For testing
+
+  homebrew-bump:
+    name: Bump Homebrew Formula
+    needs: pypi-publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bump Homebrew
+        # This is a placeholder for the actual bump mechanism.
+        # Usually leveraging `mislav/bump-homebrew-formula-action` or a custom script.
+        run: |
+          echo "Bumping Homebrew Formula..."
+          # gh workflow run bump-formula.yml -f version=${{ github.event.release.tag_name }}
+          echo "Warning: Homebrew bump automation requires specific secrets configuration."

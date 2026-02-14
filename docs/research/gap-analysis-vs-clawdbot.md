@@ -54,7 +54,7 @@ JCapy has several unique strengths that Clawdbot doesn't attempt:
 
 ---
 
-## Where Clawdbot Is Ahead (The Real Gaps)
+## Key Differences (The Real Gaps)
 
 ### 🔴 Critical Gaps (Game-changers if JCapy adopted them)
 
@@ -116,9 +116,9 @@ graph TB
 
 ---
 
-## Recommendation: What to Steal, What to Skip
+## Strategic Recommendations
 
-### ✅ Steal These Ideas (High ROI, Low Effort)
+### ✅ Recommended Adoptions (High ROI, Low Effort)
 
 1. **Persistent Memory** → Store brainstorm history + project context in `~/.jcapy/memory/`
 2. **`jcapy install <url>`** → Clone community skill packs from Git URLs
@@ -130,7 +130,7 @@ graph TB
 5. **Lightweight remote trigger** — Telegram bot → SSH → `jcapy deploy`
 6. **Web research** — fetch URL → markdown → feed to brainstorm
 
-### ❌ Skip These (Wrong philosophy for JCapy)
+### ❌ Out of Scope (Wrong philosophy for JCapy)
 
 7. **Multi-platform chat gateway** — JCapy is a developer CLI, not a chat assistant
 8. **Smart home** — irrelevant to developer workflows

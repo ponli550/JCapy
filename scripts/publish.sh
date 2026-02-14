@@ -33,7 +33,7 @@ cd "$(dirname "$0")/.."
 
 REPO_NAME="JCapy"
 GITHUB_USER="ponli550"
-HOMEBREW_TAP_REPO="homebrew-JCapy"
+HOMEBREW_TAP_REPO="homebrew-jcapy"
 VERSION_FILE="src/jcapy/utils/updates.py"
 ALLOWED_BRANCH="main"
 
@@ -335,6 +335,14 @@ else
     # Clean old builds
     rm -rf dist/ build/ *.egg-info src/*.egg-info
 
+    # Enterprise Split Check
+    if [ -d "private" ] || [ -d "pro" ]; then
+        echo "⚠️  Enterprise directories detected!"
+        if ! confirm "Ensure 'private/' and 'pro/' are excluded from MANIFEST.in. Continue?"; then
+             error_exit "Aborted safety check."
+        fi
+    fi
+
     # Ensure build tools are available
     pip install --quiet --upgrade build twine
 
@@ -382,7 +390,7 @@ if confirm "🍺 Also update Homebrew tap?"; then
 
     if $DRY_RUN; then
         echo "   [DRY-RUN] Would fetch tarball from $URL"
-        echo "   [DRY-RUN] Would update homebrew-JCapy formula"
+        echo "   [DRY-RUN] Would update $HOMEBREW_TAP_REPO formula"
     else
         echo "   Waiting for GitHub to generate tarball..."
         sleep 5
@@ -444,5 +452,12 @@ echo "  PyPI:    pip install jcapy"
 if $DRY_RUN; then
     echo ""
     echo "  ⚠️  This was a DRY-RUN. No changes were made."
+else
+    # Post-Release Cleanup
+    echo ""
+    echo "🧹 Post-Release Cleanup..."
+    echo "   • Re-installing in editable mode for development..."
+    pip install -e .
+    echo "   ✔ Ready for next dev cycle."
 fi
 echo ""

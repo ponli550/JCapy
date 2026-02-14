@@ -79,7 +79,7 @@ These are things Dataiku does that JCapy **should never try to do**:
 | **Fine-tuning LLMs** | Visual fine-tuning interface | ❌ Not JCapy's scope | **Different planet** |
 
 > [!NOTE]
-> These gaps are **by design, not by deficiency**. JCapy is a Swiss Army knife for a solo developer. Dataiku is a full factory floor for enterprise data teams. Trying to close these gaps would destroy JCapy's identity.
+> These gaps are **by design, not by deficiency**. JCapy is a Swiss Army knife for a solo developer. Dataiku is a full factory floor for enterprise data teams. Closing these gaps would dilute JCapy's core value proposition.
 
 ---
 
@@ -98,17 +98,17 @@ These are Dataiku concepts that **could translate** into JCapy's one-army philos
 
 ---
 
-### 🟢 Where JCapy Wins (Yes, Really)
+### 🟢 JCapy's Distinct Advantages
 
 | Capability | JCapy | Dataiku | Why JCapy Wins |
 |---|---|---|---|
-| **Zero-friction startup** | `brew install jcapy` → instant CLI | 14-day trial → sales call → enterprise onboarding | Solo devs need tools NOW |
+| **Zero-friction startup** | `brew install jcapy` → instant CLI | Enterprise procurement cycle | Solo devs need tools NOW |
 | **Executable Knowledge** | Markdown → bash execution | Notebooks + recipes (heavier) | JCapy's "Infrastructure as Documentation" is unique |
 | **Persona Isolation** | Git-backed role switching | Single shared workspace | JCapy's knowledge separation is novel |
 | **One-Army Philosophy** | Every feature designed for solo dev | Enterprise-first, complexity compounds | Dataiku is overkill for 1 person |
-| **Cinematic UX** | Matrix rain, glass-box panels | Corporate enterprise UI | JCapy *feels* like a product you love |
+| **Cinematic UX** | Matrix rain, glass-box panels | Standard Web UI | JCapy *feels* like a product you love |
 | **Cost** | Free, forever | €50K–€250K/year | Incomparable |
-| **Offline-first** | Works without internet | Cloud-dependent | JCapy works on a plane |
+| **Offline-first** | Local-first architecture | Cloud-dependent | JCapy works on a plane |
 | **Deploy Pipeline** | Grade-aware (A/B/C) per project | Not a deployment tool | JCapy's grade system is unique |
 
 ---
@@ -148,7 +148,7 @@ graph LR
 
 ---
 
-## Gap Score: The Honest Numbers
+## Comparative Capability Assessment
 
 | Category | JCapy | Dataiku | Notes |
 |---|---|---|---|

@@ -1,15 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
 import os
 import time
 import hashlib
 from typing import List, Dict, Any, Optional
 import chromadb
 from chromadb.config import Settings
-from jcapy.config import get_active_library_path
+from jcapy.config import get_active_library_path, load_config
+from jcapy.memory_interfaces import MemoryInterface
 
-class MemoryBank:
+class LocalMemoryBank:
     """
-    The Long-Term Memory of JCapy.
-    Uses ChromaDB to store and retrieve skills/docs based on semantic meaning.
+    The Long-Term Memory of JCapy (Community Edition).
+    Uses local ChromaDB to store and retrieve skills/docs.
     """
     def __init__(self, persistence_path=None):
         if not persistence_path:
@@ -74,7 +76,7 @@ class MemoryBank:
 
         return hits
 
-    def clear(self):
+    def clear(self) -> bool:
         """Wipes the entire memory bank."""
         try:
             self.client.delete_collection("jcapy_knowledge")
@@ -139,8 +141,6 @@ class MemoryBank:
 
             self.add_document(content, file_path, meta)
             stats["added"] += 1
-            # Optional: Print verbose?
-            # print(f"  • Memorized: {os.path.basename(file_path)}")
 
         except Exception as e:
             print(f"  ❌ Error reading {file_path}: {e}")
@@ -177,7 +177,29 @@ class MemoryBank:
         results = self.memorize([library_path], clear_first=False)
         print(f"✨ Memory Sync Complete. {results['added']} items indexed.")
 
-def get_memory_bank():
-    """Singleton-like accessor"""
-    return MemoryBank()
+# Default factory
+def get_memory_bank() -> MemoryInterface:
+    """
+    Factory to return the appropriate MemoryBank implementation.
+    Reads 'memory_provider' from config.
+    """
+    try:
+        config = load_config()
+        provider = config.get("memory_provider", "local")
 
+        if provider == "remote":
+            # Future: return RemoteMemoryBank()
+            # For now, fallback or raise
+            print("⚠️ Remote memory not implemented in Community Edition. Using Local.")
+            return LocalMemoryBank()
+
+        return LocalMemoryBank()
+    except Exception:
+        # Fallback
+        return LocalMemoryBank()
+
+# Alias for backward compatibility if needed, though bootstrapping uses get_memory_bank() logic mostly?
+# Actually bootstrap.py imports MemoryBank class directly in `_run_memorize` and `_run_recall`.
+# I should export MemoryBank as LocalMemoryBank for now to avoid breaking existing imports if they expect a class.
+# But better to fix bootstrap.py to use `get_memory_bank()`.
+MemoryBank = LocalMemoryBank
