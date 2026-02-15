@@ -24,6 +24,48 @@ def check_k8s_connection():
         return True
     except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
         return False
+        return False
+
+def check_memory():
+    """Checks memory provider status"""
+    results = {"provider": "local", "pinecone": "N/A", "chroma": "unknown"}
+    config = load_config()
+    provider = os.getenv("JCAPY_MEMORY_PROVIDER", config.get("memory_provider", "local"))
+    results["provider"] = provider
+
+    if provider == "remote":
+        api_key = os.getenv("JCAPY_PINECONE_API_KEY")
+        if api_key:
+            results["pinecone"] = "Configured"
+            try:
+                from pinecone import Pinecone
+                pc = Pinecone(api_key=api_key)
+                # Quick connectivity check
+                pc.list_indexes()
+                results["pinecone"] = "Connected"
+            except Exception as e:
+                results["pinecone"] = f"Error: {e}"
+        else:
+            results["pinecone"] = "Missing Key"
+
+    # Check local chroma
+    try:
+        import chromadb
+        results["chroma"] = "Installed"
+    except ImportError:
+        results["chroma"] = "Missing"
+
+    return results
+
+def check_telemetry():
+    """Checks telemetry status"""
+    from jcapy.telemetry import get_telemetry
+    t = get_telemetry()
+    return {
+        "enabled": t.enabled,
+        "posthog_key": "Present" if os.getenv("POSTHOG_API_KEY") else "Missing",
+        "user_id": t.user_id
+    }
 
 def check_system(full_scan=True):
     """Performs system health checks. Returns a dict of results."""
@@ -32,8 +74,11 @@ def check_system(full_scan=True):
         "config": {},
         "integrations": {},
         "installation": {},
+        "memory": {}, # New
+        "telemetry": {}, # New
         "all_passed": True
     }
+
 
     # 0. Check Installation (Homebrew)
     results["installation"]["Homebrew Managed"] = False
@@ -107,6 +152,12 @@ def check_system(full_scan=True):
              else:
                  results["integrations"]["Backend (Blueprint)"] = True
 
+                 results["integrations"]["Backend (Blueprint)"] = True
+
+    # 6. Memory & Telemetry
+    results["memory"] = check_memory()
+    results["telemetry"] = check_telemetry()
+
     return results
 
 def run_doctor():
@@ -177,6 +228,41 @@ def run_doctor():
         icon = "[green]✔[/green]" if passed else "[red]![/red]"
         msg = f"[dim]Configured[/dim]" if passed else "[red]Missing[/red]"
         table.add_row(f"  {provider.capitalize()}", f"{icon}  {msg}")
+    console.print(table)
+
+    # Memory Table
+    table = Table(show_header=False, box=None)
+    table.add_column("Item", width=15)
+    table.add_column("Status")
+
+    console.print("\n[bold]🧠 Memory Bank[/bold]")
+    mem = results["memory"]
+    p_style = "[green]" if mem["provider"] == "remote" else "[dim]"
+    table.add_row("  Provider", f"{p_style}{mem['provider'].upper()}[/]")
+    if mem["provider"] == "remote":
+        pc_status = mem["pinecone"]
+        icon = "[green]✔[/green]" if pc_status == "Connected" else "[red]![/red]"
+        table.add_row("  Pinecone", f"{icon}  {pc_status}")
+
+    c_status = mem["chroma"]
+    c_icon = "[green]✔[/green]" if c_status == "Installed" else "[red]![/red]"
+    table.add_row("  ChromaDB", f"{c_icon}  {c_status}")
+    console.print(table)
+
+    # Telemetry Table
+    table = Table(show_header=False, box=None)
+    table.add_column("Item", width=15)
+    table.add_column("Status")
+
+    console.print("\n[bold]📡 Telemetry[/bold]")
+    tel = results["telemetry"]
+    enabled = "[green]Enabled[/green]" if tel["enabled"] else "[yellow]Disabled[/yellow]"
+    table.add_row("  Status", enabled)
+    if tel["enabled"]:
+        ph_key = tel["posthog_key"]
+        icon = "[green]✔[/green]" if ph_key == "Present" else "[red]![/red]"
+        table.add_row("  PostHog Key", f"{icon}  {ph_key}")
+    table.add_row("  User ID", f"[dim]{tel['user_id'][:8]}...[/dim]")
     console.print(table)
 
     # Personas Integrity Check (The Main Event for Refactor)

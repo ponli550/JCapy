@@ -6,7 +6,7 @@ from jcapy.config import load_config, save_config, DEFAULT_LIBRARY_PATH
 # Global State for Main Loop
 SKILL_UPDATES_AVAILABLE = False
 APP_UPDATE_AVAILABLE = None
-VERSION = "4.1.1"
+VERSION = "4.0.0"
 
 def check_for_app_updates():
     """Checks GitHub for the latest CLI Release Tag"""
@@ -32,7 +32,7 @@ def check_for_app_updates():
         import urllib.request
         import json
 
-        url = "https://api.github.com/repos/irfansoftstudio/jcapy/tags"
+        url = "https://api.github.com/repos/ponli550/jcapyCLI/tags"
         req = urllib.request.Request(url, headers={'User-Agent': 'jcapyCLI'})
 
         with urllib.request.urlopen(req, timeout=3) as response:

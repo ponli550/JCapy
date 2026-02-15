@@ -56,7 +56,15 @@ def main():
     register_core_commands(registry)
 
     # 3. Load External Plugins
+    # 3. Load External Plugins
     registry.load_plugins()
+
+    # Load Example Local Plugins (for dev/test)
+    # Ideally config.get("plugin_paths")
+    registry.load_local_plugins("examples/skills")
+
+    # Load User Plugins
+    registry.load_local_plugins(os.path.expanduser("~/.jcapy/skills"))
 
     parser = argparse.ArgumentParser(description=f"# jcapy Core - The One-Army Orchestrator\n# Version: {VERSION}", add_help=True)
     subparsers = parser.add_subparsers(dest="command", help="Available commands")

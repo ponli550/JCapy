@@ -181,17 +181,27 @@ class LocalMemoryBank:
 def get_memory_bank() -> MemoryInterface:
     """
     Factory to return the appropriate MemoryBank implementation.
-    Reads 'memory_provider' from config.
+    Reads 'memory_provider' from config or env var JCAPY_MEMORY_PROVIDER.
     """
     try:
-        config = load_config()
-        provider = config.get("memory_provider", "local")
+        # Env var takes precedence
+        env_provider = os.getenv("JCAPY_MEMORY_PROVIDER")
+        if env_provider:
+            provider = env_provider
+        else:
+            config = load_config()
+            provider = config.get("memory_provider", "local")
 
         if provider == "remote":
-            # Future: return RemoteMemoryBank()
-            # For now, fallback or raise
-            print("⚠️ Remote memory not implemented in Community Edition. Using Local.")
-            return LocalMemoryBank()
+            try:
+                from jcapy.memory.remote import RemoteMemoryBank
+                return RemoteMemoryBank()
+            except ImportError as e:
+                 print(f"⚠️  Detailed error loading RemoteMemoryBank (check pinecone-client): {e}. Falling back to Local.")
+                 return LocalMemoryBank()
+            except Exception as e:
+                 print(f"⚠️  Error initializing Remote Memory: {e}. Falling back to Local.")
+                 return LocalMemoryBank()
 
         return LocalMemoryBank()
     except Exception:
