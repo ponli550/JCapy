@@ -9,6 +9,7 @@ from jcapy.commands.brain import select_persona, open_brain_vscode, run_brainsto
 from jcapy.commands.sync import sync_all_personas, push_all_personas
 from jcapy.commands.project import init_project, deploy_project, map_project_patterns
 from jcapy.commands.install import InstallCommand
+from jcapy.commands.manage import ManageCommand
 from jcapy.commands.core import MemorizeCommand, RecallCommand, ConfigCommand
 from jcapy.commands.doctor import DoctorCommand
 from jcapy.commands.core_cmd import run_undo, setup_undo, run_suggest, run_tutorial, setup_tutorial, run_tui
@@ -27,7 +28,10 @@ def register_core_commands(registry):
     # 1. Install (The Marketplace)
     registry.register(InstallCommand(), interactive=True)
 
-    # 2. Management
+    # 2. Manage (MCP/Widgets/Plugins/Layouts)
+    registry.register(ManageCommand())
+
+    # 3. Management
     registry.register(
         name="list",
         handler=lambda args: list_frameworks(),
@@ -70,8 +74,8 @@ def register_core_commands(registry):
 
     registry.register("delete", lambda args: delete_framework(args.name), "Delete a framework", aliases=["rm"], setup_parser=setup_delete, interactive=True)
 
-    # MANAGE
-    registry.register("manage", lambda args: run_tui(args), "Interactive TUI Manager", aliases=["tui"], interactive=True)
+    # TUI Dashboard (previously aliased as 'manage', now standalone)
+    registry.register("tui", lambda args: run_tui(args), "Launch Interactive TUI Dashboard", interactive=True)
 
     # PERSONA
     def setup_persona(parser):

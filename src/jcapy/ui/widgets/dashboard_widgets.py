@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from textual.widgets import Static, Button, TextArea, ListView, ListItem, Label, DirectoryTree, RichLog
 from textual.widget import Widget
 from textual.containers import Vertical, Horizontal, Grid, Container
@@ -55,9 +56,8 @@ class ClockWidget(Static):
     def update_clock(self) -> None:
         now = datetime.now()
         utc = datetime.utcnow()
-        time_str = f"[bold cyan]{now.strftime('%H:%M:%S')}[/] [dim]LOC[/]\n[bold yellow]{utc.strftime('%H:%M')}[/] [dim]UTC[/]"
-        border = "green" if getattr(self, "highlighted", False) else "blue"
-        self.update(Panel(time_str, title="[bold]🕒 Time Panel[/bold]", border_style=border, title_align="left"))
+        time_str = f"[bold cyan] {now.strftime('%H:%M:%S')}[/]\n [dim]UTC {utc.strftime('%H:%M')}[/]"
+        self.update(time_str)
 
 class KanbanTask(ListItem):
     """A focusable task item in the Kanban board."""
@@ -200,40 +200,48 @@ class ProjectStatusWidget(Static):
         try:
             branch = subprocess.check_output(["git", "branch", "--show-current"], stderr=subprocess.DEVNULL).decode().strip()
         except: branch = "Not a git repo"
-        content = f"[bold]Project:[/] {project_name}\n[bold]Path:[/]    {cwd}\n[bold]Branch:[/]  [magenta]{branch}[/]"
-        border = "green" if getattr(self, "highlighted", False) else "magenta"
-        self.update(Panel(content, title="📂 Project Status", border_style=border))
+
+        content = f"\n[bold magenta]📂 {project_name.upper()}[/]\n"
+        content += f"[dim] {branch}[/]\n"
+        content += f"[dim] {cwd.replace(os.path.expanduser('~'), '~')}[/]"
+        self.update(content)
 
 class MarketplaceItem(ListItem):
-    """An installable skill item."""
-    def __init__(self, name: str, status: str = "installed") -> None:
+    """An installable skill/widget item."""
+    def __init__(self, item: Any) -> None:
         super().__init__()
-        self.item_name = name
-        self.status = status
+        self.item_data = item
+        self.item_name = item.name
 
     def compose(self) -> ComposeResult:
         with Horizontal():
-             yield Label(f"● [green]{self.item_name}[/]" if self.status == "installed" else f"○ [dim]{self.item_name}[/]")
-             if self.status != "installed":
-                 safe_name = self.item_name.lower().replace(" ", "-")
-                 yield Button("Install", variant="primary", id=f"install-{safe_name}")
+             status_icon = "● [green]" if self.item_data.installed else "○ [dim]"
+             yield Label(f"{status_icon}{self.item_name}[/]")
+             yield Label(f" [dim]({self.item_data.type})[/]", classes="item-type")
+             if not self.item_data.installed:
+                 yield Button("Install", variant="primary", id=f"install-{self.item_name.lower().replace(' ', '-')}")
+             else:
+                 yield Label(" [italic green]Installed[/]", classes="item-installed")
 
 class MarketplaceWidget(Container, can_focus=True):
-    """Available Skills/Tools with Install flow."""
+    """Available Skills/Tools with real installation flow."""
     def compose(self) -> ComposeResult:
         yield Label("[bold]🛍️  Marketplace[/bold]", classes="col-header")
-        yield ListView(
-            MarketplaceItem("Go Microservice", "installed"),
-            MarketplaceItem("Python API", "installed"),
-            MarketplaceItem("React Frontend", "installed"),
-            MarketplaceItem("React Dashboard", "available"),
-            MarketplaceItem("Rust CLI", "available"),
-            id="marketplace-list"
-        )
+        yield ListView(id="marketplace-list")
 
     def on_mount(self) -> None:
         self.highlighted = False
         self.styles.border = ("solid", "cyan")
+        self.update_market()
+
+    def update_market(self) -> None:
+        from jcapy.core.marketplace import MarketplaceService
+        items = MarketplaceService.get_available_items()
+
+        m_list = self.query_one("#marketplace-list", ListView)
+        m_list.clear()
+        for item in items:
+            m_list.append(MarketplaceItem(item))
 
     def toggle_highlight(self, active: bool) -> None:
         self.highlighted = active
@@ -242,13 +250,16 @@ class MarketplaceWidget(Container, can_focus=True):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id.startswith("install-"):
             try:
-                item = event.button.parent.parent
-                if hasattr(item, "item_name"):
-                    item_name = item.item_name
-                    self.app.notify(f"🚀 Launching installer for {item_name}...", severity="information")
-                    if hasattr(self.app, "run_command"):
-                        self.app.run_command(f"jcapy install {item_name}")
-            except: self.app.notify("Error launching installer", severity="error")
+                item_widget = event.button.parent.parent
+                item_data = item_widget.item_data
+                git_url = item_data.git_url
+
+                self.app.notify(f"🚀 Launching installer for {item_data.name}...", severity="information")
+                if hasattr(self.app, "run_command"):
+                    # Use the actual git URL for installation
+                    self.app.run_command(f"jcapy install {git_url}")
+            except Exception as e:
+                self.app.notify(f"Error launching installer: {e}", severity="error")
 
 class FileExplorerWidget(Static, can_focus=True):
     """Interactive File Explorer with nvim integration."""

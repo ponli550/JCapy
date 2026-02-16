@@ -20,15 +20,9 @@ from jcapy.ui.widgets.dashboard_widgets import (
     WidgetRegistry
 )
 
-JCAPY_LOGO = """
-      _  _____
-     | |/ ____|
-     | | |     __ _ _ __  _   _
- _   | | |    / _` | '_ \| | | |
-| |__| | |___| (_| | |_) | |_| |
- \____/ \_____\__,_ | .__/ \__, |
-                   | |     __/ |
-                   |_|    |___/
+JCAPY_LOGO_COMPACT = """
+ [bold cyan]JCapy[/] [dim]v2.0[/]
+ [bold blue]━━━━━[/]
 """
 
 from jcapy.ui.screens.widget_catalog import WidgetCatalogScreen
@@ -49,39 +43,41 @@ class DashboardScreen(Screen):
 
     CSS = """
     DashboardScreen {
-        layout: grid;
-        grid-size: 3;
-        grid-columns: 1fr 2.5fr 1fr;
-        grid-rows: 14 1fr 10;
-        grid-gutter: 2;
-        padding: 1;
+        layout: horizontal;
         background: $background;
     }
 
     DashboardScreen.edit-mode-active {
-        background: #0a192f; /* Deep Navy Edit Background */
+        background: #0a192f;
     }
 
-    #logo-area {
-        column-span: 3;
+    #sidebar {
+        width: 26;
         height: 100%;
-        content-align: center middle;
         background: $boost 10%;
-        border: double $accent 30%;
-        margin-bottom: 2;
+        border-right: tall $accent 20%;
+        padding: 1;
+        dock: left;
+    }
+
+    #main-area {
+        layout: grid;
+        grid-size: 3;
+        grid-columns: 1.2fr 2.5fr 1fr;
+        grid-gutter: 1;
+        padding: 0 1;
     }
 
     #left-col, #center-col, #right-col {
-        row-span: 1;
+        height: 100%;
         overflow-y: auto;
-        padding: 1;
-        background: $surface 20%;
-        border: solid $accent 10%;
+        padding: 0 1;
     }
 
     #center-col {
-        background: $surface 40%;
-        border: solid $accent 30%;
+        background: $surface 20%;
+        border-right: solid $accent 5%;
+        border-left: solid $accent 5%;
     }
 
     .selected-widget {
@@ -93,12 +89,13 @@ class DashboardScreen(Screen):
     .logo {
         color: $accent;
         text-style: bold;
+        margin-bottom: 1;
     }
 
     /* Kanban specific interactive styles */
     .kanban-col {
         width: 1fr;
-        border: solid $surface;
+        border: solid $surface-lighten-1;
         margin: 0 1;
         background: $surface 10%;
     }
@@ -114,6 +111,7 @@ class DashboardScreen(Screen):
         background: $boost;
         text-style: bold;
         padding: 0 1;
+        color: $text;
     }
 
     ListView:focus {
@@ -125,28 +123,36 @@ class DashboardScreen(Screen):
     def compose(self) -> ComposeResult:
         layout = get_dashboard_layout()
 
-        # Header / Logo Area (Row 1, Span 3)
-        with Horizontal(id="logo-area"):
-             yield Static(JCAPY_LOGO, classes="logo")
+        # Sidebar (Logo + Context)
+        with Vertical(id="sidebar"):
+            yield Static(JCAPY_LOGO_COMPACT, classes="logo")
+            # We don't use dynamic layout for sidebar yet, keeping it as a steady anchor
+            yield ClockWidget()
+            yield ProjectStatusWidget()
 
-        # Dynamic Columns
-        with Vertical(id="left-col"):
-            for w_name in layout.get("left_col", []):
-                yield self._create_widget(w_name)
-
-        # Center Column
-        with Vertical(id="center-col"): # Wrapped in Vertical for consistency
-            for w_name in layout.get("center_col", []):
-                yield self._create_widget(w_name)
-
-        # Right Column
-        with Vertical(id="right-col"):
-            for w_name in layout.get("right_col", []):
-                yield self._create_widget(w_name)
-
-            # Static Controls (always at bottom right)
-            yield Button("🔍 Find (Ctrl+P)", id="btn-find", variant="primary")
+            # Static Controls (moved to sidebar bottom)
+            yield Static("\n" * 2) # Spacer
+            yield Button("🔍 Find", id="btn-find", variant="primary")
             yield Button("🚪 Quit", id="btn-quit", variant="error")
+
+        # Main Workspace
+        with Grid(id="main-area"):
+            # Left Column (FileExplorer, etc)
+            with Vertical(id="left-col"):
+                for w_name in layout.get("left_col", []):
+                    # Filter out widgets moved to sidebar to avoid duplication
+                    if w_name not in ["Clock", "ProjectStatus"]:
+                        yield self._create_widget(w_name)
+
+            # Center Column (Kanban)
+            with Vertical(id="center-col"):
+                for w_name in layout.get("center_col", []):
+                    yield self._create_widget(w_name)
+
+            # Right Column (Marketplace, Usage, etc)
+            with Vertical(id="right-col"):
+                for w_name in layout.get("right_col", []):
+                    yield self._create_widget(w_name)
 
         yield Footer()
         from jcapy.ui.widgets.dashboard_widgets import ConsoleDrawer

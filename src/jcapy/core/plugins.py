@@ -236,6 +236,10 @@ class CommandRegistry:
             if hasattr(module, "register_commands"):
                 module.register_commands(self)
 
+            if hasattr(module, "register_widgets"):
+                from jcapy.ui.widgets.dashboard_widgets import WidgetRegistry
+                module.register_widgets(WidgetRegistry)
+
 _registry = CommandRegistry()
 
 def get_registry() -> CommandRegistry:
