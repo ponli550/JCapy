@@ -22,6 +22,7 @@ class JCapyApp(App):
         (":", "toggle_command_mode", "Command Mode"),
         ("j", "scroll_down", "Scroll Down"),
         ("k", "scroll_up", "Scroll Up"),
+        ("`", "toggle_console", "Toggle Console"),
     ]
 
     SCREENS = {"dashboard": DashboardScreen}
@@ -70,6 +71,15 @@ class JCapyApp(App):
     @work(thread=True, exit_on_error=False)
     def run_command(self, command_str: str) -> None:
         """Execute a command via the Shared Engine and route the result."""
+        # --- Shell Suspension ---
+        cmd_clean = command_str.strip().lower()
+        if cmd_clean in ("shell", "suspend"):
+            with self.suspend():
+                import subprocess
+                import os
+                subprocess.run([os.environ.get("SHELL", "zsh")])
+            return
+
         # Ensure we're on the terminal view
         if isinstance(self.screen, DashboardScreen):
             self.call_from_thread(self.pop_screen)
@@ -108,6 +118,16 @@ class JCapyApp(App):
     def _render_result(self, command_str: str, result: CommandResult) -> None:
         """Write a CommandResult into the terminal RichLog."""
         log = self.query_one("#terminal-log", RichLog)
+
+        # Route to Dashboard Console Drawer if present
+        try:
+            drawer = self.screen.query_one("#dashboard-console")
+            drawer.write(f"\n[bold green]❯ {command_str}[/]")
+            for entry in result.logs:
+                if entry.strip():
+                    drawer.write(entry)
+        except:
+            pass
 
         # Command header
         status_icon = "✔" if result.status == ResultStatus.SUCCESS else "✘"
@@ -152,6 +172,14 @@ class JCapyApp(App):
 
         elif hint == "notify":
             self.notify(result.message, severity=result.status.value)
+
+    def action_toggle_console(self) -> None:
+        """Toggle the slide-up console drawer."""
+        try:
+            drawer = self.screen.query_one("#dashboard-console")
+            drawer.toggle()
+        except:
+            pass
 
     # ------------------------------------------------------------------
     # Navigation Helpers

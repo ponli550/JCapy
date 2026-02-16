@@ -169,3 +169,24 @@ def get_all_ux_preferences() -> dict:
     result = UX_DEFAULTS.copy()
     result.update(ux)
     return result
+
+# ==========================================
+# DASHBOARD LAYOUT MANAGEMENT
+# ==========================================
+DEFAULT_LAYOUT = {
+    "left_col": ["FileExplorer", "MCP"],
+    "center_col": ["Kanban"],
+    "right_col": ["Marketplace"]
+}
+
+def get_dashboard_layout():
+    """Get dashboard widget layout."""
+    config = load_config()
+    return config.get("dashboard_layout", DEFAULT_LAYOUT)
+
+def set_dashboard_layout(layout):
+    """Set dashboard widget layout."""
+    config = load_config()
+    config["dashboard_layout"] = layout
+    save_config(config)
+    return True
