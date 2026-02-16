@@ -44,6 +44,7 @@ class DashboardScreen(Screen):
         Binding("e", "toggle_edit_mode", "Toggle Edit Layout"),
         Binding("+", "add_widget", "Add (+)", show=False),
         Binding("-", "remove_widget", "Remove (-)", show=False),
+        Binding("x", "remove_widget", "Remove (x)", show=False),
     ]
 
     CSS = """

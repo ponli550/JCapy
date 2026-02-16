@@ -254,6 +254,7 @@ class FileExplorerWidget(Static, can_focus=True):
     """Interactive File Explorer with nvim integration."""
     BINDINGS = [
         Binding("o", "open_file", "Open in nvim"),
+        Binding("space", "open_file", "Open (Space)", show=False),
         Binding("m", "map_view", "Map View"),
     ]
 
