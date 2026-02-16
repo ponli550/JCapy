@@ -1,0 +1,68 @@
+[0;36m🚀 Starting JCapy End-to-End User Journey Demo[0m
+[1;33m🔧 Using JCapy at: /Users/irfanali/Desktop/JAAVISv2.0.0/jcapy/.venv/bin/jcapy[0m
+[1;33m📂 Created temporary directory: /var/folders/q6/rtdpjxbs7n3bsmzx0ymngz140000gn/T/tmp.pofVotQwku[0m
+
+[0;36m1. Initializing Project (jcapy init)...[0m
+Hello from Test Skill
+🚀 Initializing One-Army Protocol...
+  ✔ Created: apps/web
+  ✔ Created: apps/mobile
+  ✔ Created: packages/ui
+  ✔ Created: packages/config
+  ✔ Created: docker
+  ✔ Created: docker-compose.yml
+  ✔ Created: package.json (with default scripts)
+
+📋 Project Configuration
+Select Project Grade (affects deployment strictness):
+  C (Skirmish): Speed > Quality (Hackathons)
+  B (Campaign): Balanced (Standard SaaS) [Default]
+  A (Fortress): Quality > Speed (Enterprise/Fintech)
+Choose Grade [A/B/C/a/b/c]:   ✔ Saved: .jcapyrc (Grade B)
+
+📚 Scaffolding Documentation...
+✨ Project Scaffolding Complete.
+[0;32m✅ Project initialized successfully.[0m
+
+[0;36m2. Creating a dummy script to harvest...[0m
+[0;32m✅ Created deploy_demo.sh[0m
+
+[0;36m3. Harvesting Skill (jcapy harvest)...[0m
+Hello from Test Skill
+[1;35m🌾 jcapy Harvest Protocol (Irfanalinazri)[0m
+-----------------------------------------------------
+[bold cyan]📄 Parsing documentation: deploy_demo.sh...[/bold cyan]
+  [red]✘ Failed to parse doc or file not found.[/red]
+[1;36m? What is the name of this framework? (e.g., 'glass-card') []: [0m[1;32m   → Auto-categorized as 'devops' and prefixed as 'Deploy Demo Deploy'[0m
+[1;36m? Description (short summary) []: [0m[1;36m? Grade (A/B/C) [B]: [0m[1;36m? Pros (comma separated) []: [0m[1;36m? Cons (comma separated) []: [0m
+[1;36m? Paste executable code (type 'EOF' on new line when done, or press Enter to skip):[0m
+[0;90m  This will be injected into the <!-- jcapy:EXEC --> block[0m
+[1;36m--- Begin Block ---[0m
+[1;32m   ✓ Captured block with 6 lines[0m
+[1;36m? Add another code block? (y/N): [0m[1;32m   ✓ Total 1 blocks captured[0m
+[1;33m! Framework 'deploy_demo_deploy.md' exists. Overwrite? (y/N): [0mAborted.
+
+[0;36m4. Listing Skills (jcapy list)...[0m
+[?1049h[1;24r(B[m[4l[?7h[?1l>Traceback (most recent call last):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.12_1/Frameworks/Python.framework/Versions/3.12/lib/python3.12/curses/__init__.py", line 78, in wrapper
+    cbreak()
+_curses.error: cbreak() returned ERR
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/irfanali/Desktop/JAAVISv2.0.0/jcapy/src/jcapy/main.py", line 146, in main
+    args.func(args)
+  File "/Users/irfanali/Desktop/JAAVISv2.0.0/jcapy/src/jcapy/core/bootstrap.py", line 33, in <lambda>
+    handler=lambda args: run_tui(args),
+                         ^^^^^^^^^^^^^
+  File "/Users/irfanali/Desktop/JAAVISv2.0.0/jcapy/src/jcapy/commands/core_cmd.py", line 72, in run_tui
+    _tui_run(get_active_library_path())
+  File "/Users/irfanali/Desktop/JAAVISv2.0.0/jcapy/src/jcapy/ui/tui.py", line 1020, in run
+    curses.wrapper(main, library_path)
+  File "/opt/homebrew/Cellar/python@3.12/3.12.12_1/Frameworks/Python.framework/Versions/3.12/lib/python3.12/curses/__init__.py", line 100, in wrapper
+    nocbreak()
+_curses.error: nocbreak() returned ERR
+Hello from Test Skill
+
+[1;31mUnexpected Error: nocbreak() returned ERR[0m

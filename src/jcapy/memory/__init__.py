@@ -3,8 +3,14 @@ import os
 import time
 import hashlib
 from typing import List, Dict, Any, Optional
-import chromadb
-from chromadb.config import Settings
+try:
+    import chromadb
+    from chromadb.config import Settings
+except ImportError:
+    chromadb = None
+    Settings = None
+    print("Warning: 'chromadb' not found. Memory features will be disabled.")
+
 from jcapy.config import get_active_library_path, load_config
 from jcapy.memory_interfaces import MemoryInterface
 
@@ -14,6 +20,11 @@ class LocalMemoryBank:
     Uses local ChromaDB to store and retrieve skills/docs.
     """
     def __init__(self, persistence_path=None):
+        if not chromadb:
+            self.client = None
+            self.collection = None
+            return
+
         if not persistence_path:
             # Default to ~/.jcapy/memory_db
             home = os.path.expanduser("~/.jcapy")
@@ -31,6 +42,7 @@ class LocalMemoryBank:
         )
 
     def add_document(self, content: str, source_path: str, metadata: Dict[str, Any] = None):
+        if not self.collection: return
         """Adds or updates a document in the memory bank."""
         # Create a unique ID based on the file path
         doc_id = hashlib.md5(source_path.encode()).hexdigest()
@@ -53,6 +65,8 @@ class LocalMemoryBank:
         Semantically searches for knowledge.
         Returns a list of dicts with 'metadata', 'distance', 'content'.
         """
+        if not self.collection: return []
+
         try:
             results = self.collection.query(
                 query_texts=[query],
@@ -78,6 +92,8 @@ class LocalMemoryBank:
 
     def clear(self) -> bool:
         """Wipes the entire memory bank."""
+        if not self.client: return False
+
         try:
             self.client.delete_collection("jcapy_knowledge")
             self.collection = self.client.get_or_create_collection(
@@ -94,6 +110,7 @@ class LocalMemoryBank:
         Ingests content from list of paths (files or directories).
         """
         stats = {"added": 0, "errors": 0, "skipped": 0}
+        if not self.client: return stats
 
         if clear_first:
             print("🧹 Clearing existing memory...")

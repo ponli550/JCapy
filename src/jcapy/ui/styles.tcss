@@ -1,0 +1,146 @@
+
+/* Global RESET */
+Screen {
+    background: #1e1e1e;
+    color: #d4d4d4;
+}
+
+/* ----------------------- */
+/* ORIGINAL WIDGET STYLES  */
+/* ----------------------- */
+
+/* CommandPalette Styling */
+CommandPalette {
+    width: 60%;
+    height: auto;
+    max-height: 50%;
+    margin-top: 2;
+    background: #252526;
+    border: wide $accent;
+    layer: overlay;
+    display: none; /* Hidden by default */
+}
+CommandPalette.visible {
+    display: block;
+}
+
+/* CommandBlock Styling (Output) */
+CommandBlock {
+    height: auto;
+    max_height: 50;
+    margin: 1;
+    background: #252526;
+    border: solid #3c3c3c;
+}
+CommandBlock .header {
+    background: #3c3c3c;
+    color: white;
+    padding: 0 1;
+    height: 1;
+    dock: top;
+}
+CommandBlock RichLog {
+    height: auto;
+    min_height: 5;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 1;
+}
+
+/* CommandBlock Styling (Output) */
+
+
+/* ----------------------- */
+/* NEW DASHBOARD STYLES    */
+/* ----------------------- */
+
+DashboardScreen {
+    layout: grid;
+    grid-size: 3 2;
+    grid-columns: 35 1fr 35;
+    grid-rows: 15% 85%;
+    grid-gutter: 1;
+    padding: 1;
+}
+
+#logo-area {
+    column-span: 3;
+    content-align: center middle;
+    background: #252526;
+    border: double #007acc;
+    height: 100%;
+}
+
+#left-col {
+    height: 100%;
+    background: #252526;
+    border: round #3c3c3c;
+    padding: 1;
+}
+
+#center-col {
+    height: 100%;
+    content-align: center middle;
+    background: #1e1e1e;
+    border: none;
+    opacity: 0.9;
+}
+
+#right-col {
+    height: 100%;
+    background: #252526;
+    border: round #3c3c3c;
+    padding: 1;
+}
+
+/* Widget Specifics */
+ClockWidget {
+    dock: right;
+    width: auto;
+}
+
+ProjectStatusWidget, MarketplaceWidget, MCPWidget {
+    margin-bottom: 2;
+    border-bottom: solid #3c3c3c;
+    padding-bottom: 1;
+}
+
+WorldMapWidget {
+    width: 100%;
+    height: 100%;
+    content-align: center middle;
+    color: #007acc;
+}
+
+/* Button Styling in Dashboard */
+#right-col > Button {
+    width: 100%;
+    margin-bottom: 1;
+    background: #007acc 30%;
+    border: solid #007acc;
+}
+
+/* ----------------------- */
+/* TERMINAL VIEW STYLES    */
+/* ----------------------- */
+
+#main-container {
+    width: 100%;
+    height: 100%;
+    background: #1e1e1e;
+}
+
+#terminal-scroll {
+    width: 100%;
+    height: 100%;
+    background: #1e1e1e;
+}
+
+#terminal-log {
+    width: 100%;
+    height: auto;
+    min-height: 10;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 1 2;
+}

@@ -118,8 +118,28 @@ def main():
             # Default Flow: Dashboard directly (User Request)
             from jcapy.commands.brain import migrate_persona_libraries
             migrate_persona_libraries()
-            from jcapy.ui.tui import run as run_tui
-            run_tui(get_active_library_path())
+
+            try:
+                from jcapy.ui.app import JCapyApp
+                app = JCapyApp()
+                app.run()
+            except ImportError as e:
+                # Provide a much more helpful error message for missing TUI dependencies
+                print(f"\n❌ Dashboard Error: {e}")
+                if "textual" in str(e):
+                    print("💡 Missing 'textual' library. Dashboard requires it.")
+                    print("👉 Run: pip install textual")
+                else:
+                    print("💡 A required dependency for the UI is missing.")
+
+                print("\n🔧 Environment Check:")
+                print(f"   Python:  {sys.executable}")
+                print("   Tip:     If you have a virtual environment, make sure it's activated.")
+                print("            Try: source .venv/bin/activate && jcapy")
+            except Exception as e:
+                print(f"\n💥 Unexpected TUI Crash: {e}")
+                import traceback
+                traceback.print_exc()
             return
 
         # Handle custom version flag
@@ -134,30 +154,48 @@ def main():
             return
 
         try:
-            # Argparse doesn't handle aliases by default in older python versions,
-            # but we assume 3.8+ behavior where it mostly works or we rely on explicit mapping if needed.
             args = parser.parse_args()
         except argparse.ArgumentError:
             print_help()
             return
 
-        # Command Execution via Registry
         if hasattr(args, 'func'):
-            args.func(args)
-        else:
-            # Typo correction or help
-            if args.command:
-                # Update JCAPY_COMMANDS list from registry dynamically if needed,
-                # but hints.py likely has a hardcoded list.
-                # Ideally, simple typo check against registry keys:
-                known_commands = list(registry.get_commands().keys())
-                corrected = prompt_typo_correction(args.command, known_commands)
-                if corrected:
-                    print(f"{GREY}Running: jcapy {corrected}{RESET}")
-                    sys.argv[1] = corrected
-                    main()  # Re-run with corrected command
-                    return
-            print_help()
+            result = args.func(args)
+
+            # Legacy/Modern Bridge: Handle CommandResult
+            # If a command returns a result object, we should render it for CLI users
+            # Most legacy commands return None and print directly
+            if result:
+                try:
+                    from jcapy.core.base import CommandResult, ResultStatus
+                    if isinstance(result, CommandResult):
+                        # Print logs first (so message is at bottom)
+                        for log in result.logs:
+                             if log.strip(): print(log.strip())
+
+                        # Print Message (if significant)
+                        if result.message and not result.silent:
+                            color = GREEN if result.status == ResultStatus.SUCCESS else RED
+                            if result.status == ResultStatus.WARNING: color = YELLOW
+                            print(f"{color}{result.message}{RESET}")
+
+                        if result.status == ResultStatus.FAILURE:
+                            sys.exit(1)
+                except ImportError:
+                    pass # Should not happen if core is loaded
+            return
+
+        # Typo correction or help
+        if getattr(args, 'command', None):
+            known_commands = list(registry.get_commands().keys())
+            corrected = prompt_typo_correction(args.command, known_commands)
+            if corrected:
+                print(f"{GREY}Running: jcapy {corrected}{RESET}")
+                sys.argv[1] = corrected
+                main()  # Re-run with corrected command
+                return
+
+        print_help()
 
     except KeyboardInterrupt:
         print(f"\n{RED}Aborted by user.{RESET}")

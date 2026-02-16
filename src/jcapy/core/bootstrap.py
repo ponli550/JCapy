@@ -8,12 +8,10 @@ from jcapy.commands.frameworks import list_frameworks, harvest_framework, search
 from jcapy.commands.brain import select_persona, open_brain_vscode, run_brainstorm_wizard
 from jcapy.commands.sync import sync_all_personas, push_all_personas
 from jcapy.commands.project import init_project, deploy_project, map_project_patterns
-from jcapy.commands.doctor import run_doctor
-from jcapy.commands.edit import rapid_fix
-from jcapy.commands.research import autonomous_explore
-from jcapy.commands.install import run_install, setup_parser as setup_install_parser
-from jcapy.commands.memory_cmd import run_recall, run_memorize, setup_recall, setup_memorize
-from jcapy.commands.config_cmd import run_config, setup_config
+from jcapy.commands.install import InstallCommand
+from jcapy.commands.core import MemorizeCommand, RecallCommand, ConfigCommand
+from jcapy.commands.doctor import DoctorCommand
+from jcapy.commands.core_cmd import run_undo, setup_undo, run_suggest, run_tutorial, setup_tutorial, run_tui
 from jcapy.commands.core_cmd import run_undo, setup_undo, run_suggest, run_tutorial, setup_tutorial, run_tui
 
 from jcapy.ui.ux.safety import get_undo_stack
@@ -26,32 +24,36 @@ def register_core_commands(registry):
     This acts as the 'Standard Library' of JCapy.
     """
     # 1. Install (The Marketplace)
-    registry.register(
-        name="install",
-        handler=run_install,
-        description="Install a skill from a GitHub URL",
-        setup_parser=setup_install_parser
-    )
+    # 1. Install (The Marketplace)
+    registry.register(InstallCommand(), interactive=True)
 
     # 2. Management
     registry.register(
         name="list",
-        handler=lambda args: run_tui(args),
+        handler=lambda args: list_frameworks(),
         description="List all harvested frameworks",
         aliases=["ls"]
     )
 
     # HARVEST
     def setup_harvest(parser):
-        parser.add_argument("--doc", help="Path to existing documentation to parse")
-        parser.add_argument("--auto", help="Path to file to automatically extract a skill from")
-        parser.add_argument("doc_flag", nargs='?', help="Positional path to doc (optional)")
+        parser.add_argument("--doc", help="Document path to harvest")
+        parser.add_argument("--auto", help="Auto-harvest from code file")
+        parser.add_argument("--name", help="Framework Name")
+        parser.add_argument("--desc", help="Framework Description")
+        parser.add_argument("--grade", choices=["A", "B", "C"], help="Framework Grade")
+        parser.add_argument("--yes", action="store_true", help="Skip confirmation prompts (Headless Mode)")
+        parser.add_argument("--force", action="store_true", help="Force overwrite existing framework")
 
-    def run_harvest(args):
-        doc_arg = args.doc if args.doc else getattr(args, 'doc_flag', None)
-        harvest_framework(doc_arg, auto_path=args.auto)
-
-    registry.register("harvest", run_harvest, "Extract current code into a reusable skill", aliases=["new"], setup_parser=setup_harvest)
+    registry.register("harvest", lambda args: harvest_framework(
+        doc_path=getattr(args, 'doc', None),
+        auto_path=getattr(args, 'auto', None),
+        name=getattr(args, 'name', None),
+        description=getattr(args, 'desc', None),
+        grade=getattr(args, 'grade', None),
+        confirm=getattr(args, 'yes', False),
+        force=getattr(args, 'force', False)
+    ), "Create a new Skill (Interactive/Headless)", aliases=["new"], setup_parser=setup_harvest, interactive=True)
 
     # SEARCH
     def setup_search(parser):
@@ -66,44 +68,48 @@ def register_core_commands(registry):
     def setup_delete(parser):
         parser.add_argument("name", help="Name of the framework to delete")
 
-    registry.register("delete", lambda args: delete_framework(args.name), "Delete a framework", aliases=["rm"], setup_parser=setup_delete)
+    registry.register("delete", lambda args: delete_framework(args.name), "Delete a framework", aliases=["rm"], setup_parser=setup_delete, interactive=True)
 
     # MANAGE
-    registry.register("manage", lambda args: run_tui(args), "Interactive TUI Manager", aliases=["tui"])
+    registry.register("manage", lambda args: run_tui(args), "Interactive TUI Manager", aliases=["tui"], interactive=True)
 
     # PERSONA
     def setup_persona(parser):
         parser.add_argument("name", nargs="?", help="Name of the persona to switch to")
 
-    registry.register("persona", lambda args: select_persona(getattr(args, 'name', None)), "Switch Persona", aliases=["p"], setup_parser=setup_persona)
+    registry.register("persona", lambda args: select_persona(getattr(args, 'name', None)), "Switch Persona", aliases=["p"], setup_parser=setup_persona, interactive=True)
 
     # INIT
-    registry.register("init", lambda args: init_project(), "Scaffold One-Army Project")
+    def setup_init(parser):
+        parser.add_argument("--grade", choices=["A", "B", "C"], help="Project Grade (Headless)")
+
+    registry.register("init", lambda args: init_project(grade=getattr(args, 'grade', None)), "Scaffold One-Army Project", setup_parser=setup_init, interactive=True)
 
     # MERGE
     registry.register("merge", lambda args: merge_frameworks(), "Merge Skills into Blueprint")
 
     # DEPLOY
-    registry.register("deploy", lambda args: deploy_project(), "Deploy Project")
+    registry.register("deploy", lambda args: deploy_project(), "Deploy Project", interactive=True)
 
     # APPLY
     def setup_apply(parser):
         parser.add_argument("name", help="Name of the framework to apply")
         parser.add_argument("--dry-run", action="store_true", help="Preview commands without running")
 
-    registry.register("apply", lambda args: apply_framework(args.name, args.dry_run), "Apply Skill (Executable Knowledge)", setup_parser=setup_apply)
+    registry.register("apply", lambda args: apply_framework(args.name, args.dry_run), "Apply Skill (Executable Knowledge)", setup_parser=setup_apply, interactive=True)
 
     # DOCTOR
-    registry.register("doctor", lambda args: run_doctor(), "Check system health", aliases=["chk", "check"])
+    # DOCTOR
+    registry.register(DoctorCommand())
 
     # SYNC
-    registry.register("sync", lambda args: sync_all_personas(), "Sync frameworks with remote library")
+    registry.register("sync", lambda args: sync_all_personas(), "Sync frameworks with remote library", interactive=True)
 
     # PUSH
     registry.register("push", lambda args: push_all_personas(), "Push frameworks to remote library")
 
     # BRAINSTORM
-    registry.register("brainstorm", lambda args: run_brainstorm_wizard(), "AI Refactor & Optimization", aliases=["bs"])
+    registry.register("brainstorm", lambda args: run_brainstorm_wizard(), "AI Refactor & Optimization", aliases=["bs"], interactive=True)
 
     # SUGGEST
     registry.register("suggest", run_suggest, "Recommend next best actions")
@@ -118,10 +124,11 @@ def register_core_commands(registry):
     registry.register("undo", run_undo, "Undo last destructive action", setup_parser=setup_undo)
 
     # RECALL
-    registry.register("recall", run_recall, "Semantic Search (Vector Memory)", setup_parser=setup_recall)
+    # RECALL
+    registry.register(RecallCommand())
 
     # MEMORIZE
-    registry.register("memorize", run_memorize, "Ingest knowledge into Memory Bank", setup_parser=setup_memorize)
+    registry.register(MemorizeCommand())
 
     # FIX
     def setup_fix(parser):
@@ -144,10 +151,29 @@ def register_core_commands(registry):
     registry.register("map", lambda args: map_project_patterns(args.path), "Analyze project for harvesting candidates", setup_parser=setup_map)
 
     # TUTORIAL
-    registry.register("tutorial", run_tutorial, "Interactive onboarding", setup_parser=setup_tutorial)
+    registry.register("tutorial", run_tutorial, "Interactive onboarding", setup_parser=setup_tutorial, interactive=True)
 
     # CONFIG
-    registry.register("config", run_config, "Manage UX preferences and keys", setup_parser=setup_config)
+    registry.register(ConfigCommand())
+
+    # BRAIN (Rowboat Integration)
+    from jcapy.commands import brain_cmd
+
+    def setup_brain(parser):
+        subs = parser.add_subparsers(dest="subcommand", help="Brain actions")
+        link = subs.add_parser("link", help="Link a local directory as Brain")
+        link.add_argument("path", help="Path to Rowboat/Obsidian vault")
+
+        ask = subs.add_parser("ask", help="Ask the Brain a question")
+        ask.add_argument("question", nargs="+", help="Question to ask")
+
+    registry.register("brain", brain_cmd.run_brain, "Manage Knowledge Graph (Rowboat)", setup_parser=setup_brain)
+
+    # ASK SHORTCUT
+    def setup_ask(parser):
+        parser.add_argument("question", nargs="+", help="Question")
+
+    registry.register("ask", lambda args: brain_cmd.ask_brain(" ".join(args.question)), "Ask the Brain (Shortcut)", setup_parser=setup_ask)
 
 
 

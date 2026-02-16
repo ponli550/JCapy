@@ -76,7 +76,7 @@ def check_system(full_scan=True):
 
     return results
 
-def init_project():
+def init_project(grade=None):
     """Scaffold One-Army Directory Structure & Config"""
     try:
         from rich.console import Console
@@ -135,12 +135,16 @@ def init_project():
         console.print("\n[bold yellow]📋 Project Configuration[/bold yellow]")
 
         # 4. Grade Selection
-        console.print("Select Project Grade (affects deployment strictness):")
-        console.print("  [bold green]C (Skirmish)[/bold green]: Speed > Quality (Hackathons)")
-        console.print("  [bold blue]B (Campaign)[/bold blue]: Balanced (Standard SaaS) [dim][Default][/dim]")
-        console.print("  [bold red]A (Fortress)[/bold red]: Quality > Speed (Enterprise/Fintech)")
+        if not grade:
+            console.print("Select Project Grade (affects deployment strictness):")
+            console.print("  [bold green]C (Skirmish)[/bold green]: Speed > Quality (Hackathons)")
+            console.print("  [bold blue]B (Campaign)[/bold blue]: Balanced (Standard SaaS) [dim][Default][/dim]")
+            console.print("  [bold red]A (Fortress)[/bold red]: Quality > Speed (Enterprise/Fintech)")
 
-        grade_choice = Prompt.ask("Choose Grade", choices=["A", "B", "C", "a", "b", "c"]).upper()
+            grade_choice = Prompt.ask("Choose Grade", choices=["A", "B", "C", "a", "b", "c"]).upper()
+        else:
+            grade_choice = grade.upper()
+            console.print(f"  [cyan]ℹ Grade selected via flag:[/cyan] {grade_choice}")
 
         config = {
             "grade": grade_choice,
@@ -308,6 +312,8 @@ from jcapy.utils.ai import call_ai_agent
 
 def map_project_patterns(path='.', provider='gemini'):
     """Analyzes the project and suggests patterns to harvest."""
+    from jcapy.core.base import CommandResult, ResultStatus
+
     # ANSI Colors (Local safety)
     CYAN = '\033[1;36m'
     GREEN = '\033[1;32m'
@@ -317,7 +323,19 @@ def map_project_patterns(path='.', provider='gemini'):
     RESET = '\033[0m'
     MAGENTA = '\033[1;35m'
 
-    print(f"{CYAN}🗺️  Mapping Project Patterns in {RESET}{os.path.abspath(path)}...")
+    logs = []
+    def log(msg):
+        logs.append(msg)
+        # Verify if we are in CLI mode (direct stdout) to print immediately for responsiveness
+        # In TUI mode, stdout is captured anyway so prints are swallowed until end
+        if sys.stdout.isatty():
+            print(msg)
+
+    # Safety: Handle None path (argparse edge case)
+    path = path or '.'
+
+    start_time = datetime.now()
+    log(f"{CYAN}🗺️  Mapping Project Patterns in {RESET}{os.path.abspath(path)}...")
 
     # 1. Collect Context
     context_files = []
@@ -358,27 +376,55 @@ Return a Markdown document with:
 """
 
     # 4. Handle Execution (Level 3.0)
-    print(f"{YELLOW}📡 Sending to {provider.upper()} for analysis...{RESET}")
-    result, err = call_ai_agent(prompt, provider)
+    log(f"{YELLOW}📡 Sending to {provider.upper()} for analysis...{RESET}")
+    result_text, err = call_ai_agent(prompt, provider)
 
-    if result:
+    if result_text:
         out_file = "jcapy_proposals.md"
         with open(out_file, 'w') as f:
-            f.write(f"# JCapy Library Proposals\n> Generated on {datetime.now()}\n\n" + result)
+            f.write(f"# JCapy Library Proposals\n> Generated on {datetime.now()}\n\n" + result_text)
 
-        print(f"\n{GREEN}✨ Project Map Complete!{RESET}")
-        print(f"{MAGENTA}Proposals saved to:{RESET} {out_file}")
+        log(f"\n{GREEN}✨ Project Map Complete!{RESET}")
+        log(f"{MAGENTA}Proposals saved to:{RESET} {out_file}")
 
-        if shutil.which('code'):
-            subprocess.call(['code', out_file])
+        # Check explicit TUI context via redirected stdout (which execute_string does)
+        # Or check env var if we set it. The isatty() check works for redirection.
+        is_tui = not sys.stdout.isatty()
+
+        if is_tui:
+             # In TUI: Return the file path as an artifact to open
+             return CommandResult(
+                 status=ResultStatus.SUCCESS,
+                 message=f"Project mapped. Saved to {out_file}",
+                 logs=logs,
+                 data={"content": result_text, "file": out_file},
+                 ui_hint=f"open_file:{os.path.abspath(out_file)}"
+             )
+        else:
+             # In CLI: Open VS Code if available
+             if shutil.which('code'):
+                 subprocess.call(['code', out_file])
+
+             return CommandResult(
+                 status=ResultStatus.SUCCESS,
+                 message=f"Project mapped. Saved to {out_file}",
+                 logs=[], # Logs already printed in CLI mode
+                 data=None
+             )
     else:
-        print(f"{RED}AI Error: {err}{RESET}")
-        print(f"{YELLOW}Falling back to Local Prompt Dump...{RESET}")
+        log(f"{RED}AI Error: {err}{RESET}")
+        log(f"{YELLOW}Falling back to Local Prompt Dump...{RESET}")
 
         out_file = "project_map.prompt.txt"
         with open(out_file, 'w') as f:
             f.write(prompt)
-        print(f"\n{GREEN}🗺️  Project Map Prompt generated:{RESET} {out_file}")
+        log(f"\n{GREEN}🗺️  Project Map Prompt generated:{RESET} {out_file}")
 
         if shutil.which('code'):
             subprocess.call(['code', out_file])
+
+        return CommandResult(
+            status=ResultStatus.FAILURE,
+            message=f"AI Analysis Failed: {err}",
+            logs=logs
+        )

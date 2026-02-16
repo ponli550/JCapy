@@ -13,6 +13,57 @@ Return a Markdown document with:
 
 --- PROJECT CONTEXT ---
 
+--- FILE: ./README.md ---
+# JCapy: The One-Army Orchestrator
+
+![JCapy Logo](https://raw.githubusercontent.com/irfansoftstudio/jcapy/main/docs/assets/logo.png)
+
+> **Build Like a Team of Ten.**
+
+JCapy is an **Autonomous Engineer** that lives in your terminal. It transforms solo developers into "One-Army" powerhouses by automating knowledge management, project scaffolding, and intelligent debugging.
+
+## Features
+
+### 🧠 Autonomous Log Stream Intelligence
+**JCapy watches while you work.**
+With the new `AutonomousObserver`, JCapy monitors your terminal output in real-time. It detects crash loops, missing dependencies, and runtime errors, instanly offering "Shadow Mode" fixes without you asking.
+- **Passive Observation**: No need to copy-paste logs.
+- **Shadow Mode**: JCapy privately logs what it *would* have done vs. what you *did*, learning from your expertise.
+- **Privacy First**: All data is stored locally in `~/.jcapy/shadow_log.jsonl`.
+
+### 🚀 One-Army Scaffolding
+- **Persona System**: Switch context instantly be
+
+--- FILE: ./jcapy_proposals.md ---
+# JCapy Library Proposals
+> Generated on 2026-02-16 18:30:54.689837
+
+# Mock Report
+
+--- FILE: ./debug_import.py ---
+import sys
+import jcapy
+import jcapy.commands.frameworks
+import inspect
+
+print(f"Python executable: {sys.executable}")
+print(f"jcapy location: {jcapy.__file__}")
+print(f"frameworks location: {jcapy.commands.frameworks.__file__}")
+from jcapy.commands.frameworks import harvest_framework
+print(f"harvest_framework spec: {inspect.signature(harvest_framework)}")
+
+
+--- FILE: ./.pytest_cache/README.md ---
+# pytest cache directory #
+
+This directory contains data from the pytest's cache plugin,
+which provides the `--lf` and `--ff` options, as well as the `cache` fixture.
+
+**Do not** commit this to version control.
+
+See [the docs](https://docs.pytest.org/en/stable/how-to/cache.html) for more information.
+
+
 --- FILE: ./path/to/venv/lib/python3.12/site-packages/mdurl/_decode.py ---
 from __future__ import annotations
 
@@ -821,172 +872,4 @@ def dist_from_wheel_url(
     """Return a distribution object from the given wheel URL.
 
     This uses HTTP range requests to only fetch the portion of the whee
-
---- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/utils/logging.py ---
-from __future__ import annotations
-
-import contextlib
-import errno
-import logging
-import logging.handlers
-import os
-import sys
-import threading
-from collections.abc import Generator
-from dataclasses import dataclass
-from io import TextIOWrapper
-from logging import Filter
-from typing import Any, ClassVar
-
-from pip._vendor.rich.console import (
-    Console,
-    ConsoleOptions,
-    ConsoleRenderable,
-    RenderableType,
-    RenderResult,
-    RichCast,
-)
-from pip._vendor.rich.highlighter import NullHighlighter
-from pip._vendor.rich.logging import RichHandler
-from pip._vendor.rich.segment import Segment
-from pip._vendor.rich.style import Style
-
-from pip._internal.utils._log import VERBOSE, getLogger
-from pip._internal.utils.compat import WINDOWS
-from pip._internal.utils.deprecation import DEPRECATION_MSG_PREFIX
-from pip._internal.utils.misc import ensure_dir
-
-_log_state = threading.local()
-_stdout_console = None
-_stderr_console = None
-subprocess_logger = getLogger("pip.subprocessor")
-
-
-clas
-
---- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/utils/misc.py ---
-from __future__ import annotations
-
-import errno
-import getpass
-import hashlib
-import logging
-import os
-import posixpath
-import shutil
-import stat
-import sys
-import sysconfig
-import urllib.parse
-from collections.abc import Generator, Iterable, Iterator, Mapping, Sequence
-from dataclasses import dataclass
-from functools import partial
-from io import StringIO
-from itertools import filterfalse, tee, zip_longest
-from pathlib import Path
-from types import FunctionType, TracebackType
-from typing import (
-    Any,
-    BinaryIO,
-    Callable,
-    Optional,
-    TextIO,
-    TypeVar,
-    cast,
-)
-
-from pip._vendor.packaging.requirements import Requirement
-from pip._vendor.pyproject_hooks import BuildBackendHookCaller
-
-from pip import __version__
-from pip._internal.exceptions import CommandError, ExternallyManagedEnvironment
-from pip._internal.locations import get_major_minor_version
-from pip._internal.utils.compat import WINDOWS
-from pip._internal.utils.retry import retry
-from pip._internal.utils.
-
---- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/utils/egg_link.py ---
-from __future__ import annotations
-
-import os
-import re
-import sys
-
-from pip._internal.locations import site_packages, user_site
-from pip._internal.utils.virtualenv import (
-    running_under_virtualenv,
-    virtualenv_no_global,
-)
-
-__all__ = [
-    "egg_link_path_from_sys_path",
-    "egg_link_path_from_location",
-]
-
-
-def _egg_link_names(raw_name: str) -> list[str]:
-    """
-    Convert a Name metadata value to a .egg-link name, by applying
-    the same substitution as pkg_resources's safe_name function.
-    Note: we cannot use canonicalize_name because it has a different logic.
-
-    We also look for the raw name (without normalization) as setuptools 69 changed
-    the way it names .egg-link files (https://github.com/pypa/setuptools/issues/4167).
-    """
-    return [
-        re.sub("[^A-Za-z0-9.]+", "-", raw_name) + ".egg-link",
-        f"{raw_name}.egg-link",
-    ]
-
-
-def egg_link_path_from_sys_path(raw_name: str) -> str | None:
-    """
-    Look for a .egg-link file for project name, by 
-
---- FILE: ./path/to/venv/lib/python3.12/site-packages/pip/_internal/utils/compat.py ---
-"""Stuff that differs in different Python versions and platform
-distributions."""
-
-import importlib.resources
-import logging
-import os
-import sys
-from typing import IO
-
-__all__ = ["get_path_uid", "stdlib_pkgs", "tomllib", "WINDOWS"]
-
-
-logger = logging.getLogger(__name__)
-
-
-def has_tls() -> bool:
-    try:
-        import _ssl  # noqa: F401  # ignore unused
-
-        return True
-    except ImportError:
-        pass
-
-    from pip._vendor.urllib3.util import IS_PYOPENSSL
-
-    return IS_PYOPENSSL
-
-
-def get_path_uid(path: str) -> int:
-    """
-    Return path's uid.
-
-    Does not follow symlinks:
-        https://github.com/pypa/pip/pull/935#discussion_r5307003
-
-    Placed this function in compat due to differences on AIX and
-    Jython, that should eventually go away.
-
-    :raises OSError: When path is a symlink or can't be read.
-    """
-    if hasattr(os, "O_NOFOLLOW"):
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-        file_uid = os.fstat(fd).st_uid
-        os.close(fd)
-    else:
 

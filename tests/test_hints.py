@@ -44,7 +44,7 @@ class TestShowHint:
 
     def test_hint_displays_message(self, capsys):
         """Verify hint displays the message."""
-        with patch('jcapy.ui.ux.hints.load_config', return_value={"hints": True}):
+        with patch('jcapy.config.load_config', return_value={"hints": True}):
             show_hint("Run sync to backup")
 
         captured = capsys.readouterr()
@@ -52,7 +52,7 @@ class TestShowHint:
 
     def test_hint_suppressed_when_disabled(self, capsys):
         """Verify hint is suppressed when disabled in config."""
-        with patch('jcapy.ui.ux.hints.load_config', return_value={"hints": False}):
+        with patch('jcapy.config.load_config', return_value={"hints": False}):
             show_hint("Should not show")
 
         captured = capsys.readouterr()

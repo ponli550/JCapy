@@ -15,10 +15,11 @@ def get_git_remote_url(path: str) -> Optional[str]:
             ["git", "-C", path, "remote", "get-url", "origin"],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
+            timeout=2
         )
         return result.stdout.strip()
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return None
     except FileNotFoundError:
         # git command not found
@@ -31,11 +32,11 @@ def get_git_status(path: str) -> Tuple[Optional[str], int]:
 
     try:
         # Get uncommitted changes count
-        pending_out = subprocess.check_output(f"git -C {path} status --porcelain | wc -l", shell=True).decode().strip()
+        pending_out = subprocess.check_output(f"git -C {path} status --porcelain | wc -l", shell=True, timeout=2).decode().strip()
         pending = int(pending_out) if pending_out else 0
 
         # Get last commit relative time
-        last_sync = subprocess.check_output(f"git -C {path} log -1 --format='%cr'", shell=True).decode().strip()
+        last_sync = subprocess.check_output(f"git -C {path} log -1 --format='%cr'", shell=True, timeout=2).decode().strip()
 
         return last_sync, pending
     except Exception:
