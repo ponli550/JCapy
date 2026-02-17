@@ -106,17 +106,17 @@ class KanbanWidget(Widget, can_focus=True):
     def compose(self) -> ComposeResult:
         yield Horizontal(
             Vertical(
-                Label("[bold red]TO DO[/bold red]", classes="col-header"),
+                Label(" TO DO", classes="col-header todo"),
                 ListView(id="todo-list"),
                 id="col-todo", classes="kanban-col"
             ),
             Vertical(
-                Label("[bold yellow]DOING[/bold yellow]", classes="col-header"),
+                Label("󰔟 DOING", classes="col-header doing"),
                 ListView(id="doing-list"),
                 id="col-doing", classes="kanban-col"
             ),
             Vertical(
-                Label("[bold green]DONE[/bold green]", classes="col-header"),
+                Label("󰗠 DONE", classes="col-header done"),
                 ListView(id="done-list"),
                 id="col-done", classes="kanban-col"
             )
@@ -255,9 +255,9 @@ class ProjectStatusWidget(Static):
         home = os.path.expanduser('~')
         display_path = cwd.replace(home, "~") if cwd.startswith(home) else cwd
 
-        content = f"\n[bold magenta]📂 {project_name.upper()}[/]\n"
+        content = f"\n[bold cyan] {project_name.upper()}[/]\n"
         content += f"[dim] {branch}[/]{git_meta}\n"
-        content += f"[dim] {display_path}[/]"
+        content += f"[dim]󱂵 {display_path}[/]"
         self.update(content)
 
 class MarketplaceItem(ListItem):
@@ -490,8 +490,8 @@ class UsageTrackerWidget(Static):
         content.append("  TOTAL COST: ", style="dim white")
         content.append(f" ${cost:,.4f}", style="bold yellow")
 
-        border = "green" if getattr(self, "highlighted", False) else "magenta"
-        self.update(Panel(content, title="💸 Budget", border_style=border))
+        border = "green" if getattr(self, "highlighted", False) else "blue"
+        self.update(Panel(content, title="Budget", border_style=border))
 
     def on_config_updated(self, message: ConfigUpdated) -> None:
         """Refresh if usage keys change."""
@@ -540,9 +540,15 @@ class MCPWidget(Static):
         self.refresh_content()
 
     def refresh_content(self):
-        content = "[bold green]Active Servers:[/bold green] 🟢 [italic dim]LIVE[/]\n- filesystem\n- brave-search\n- github\n\n[dim]3 servers connected.[/dim]"
-        border = "green" if getattr(self, "highlighted", False) else "yellow"
-        self.update(Panel(content, title="🔌 MCP Tools", border_style=border))
+        content = Text.assemble(
+            ("\n 🔌 ", "bold cyan"), ("MCP INFRASTRUCTURE\n\n", "bold white"),
+            ("  filesystem     ", "dim"), ("🟢 LIVE\n", "bold green"),
+            ("  brave-search   ", "dim"), ("🟢 LIVE\n", "bold green"),
+            ("  github         ", "dim"), ("🔴 OFFLINE\n", "bold red"),
+            ("\n  3 servers configured", "italic dim")
+        )
+        border = "green" if getattr(self, "highlighted", False) else "blue"
+        self.update(Panel(content, title="Infrastructure", border_style=border))
 
 # ==========================================
 # STATUS WIDGET

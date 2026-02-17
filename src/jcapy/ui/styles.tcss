@@ -1,180 +1,207 @@
-/* Global RESET */
+/*
+ * JCapy Premium Design System
+ * ---------------------------
+ * Aesthetics: Glassmorphism, Blueprint, HSL-tailored colors
+ */
+
 Screen {
-    background: #0a0f25; /* Deep Violet/Blue "Floor" */
+    background: $background;
     color: $text;
 }
 
 /* Glassmorphism Tokens */
 .glass {
-    background: $surface 50%;
-    border: tall $accent 15%;
+    background: $surface 45%;
+    border: tall $accent 20%;
     padding: 1 2;
     margin: 1;
+    transition: background 300ms, border 300ms;
 }
 
 .glass-card {
-    background: $surface 35%;
-    border: round $accent 25%;
+    background: $surface 30%;
+    border: round $accent 35%;
     margin: 1;
     padding: 1;
+    transition: border 400ms, tint 400ms;
 }
 
 .glow {
-    tint: $accent 8%;
+    tint: $accent 10%;
     transition: tint 400ms;
 }
 
-/* Global Focus Indicator - PULSING "GLIMMER" EFFECT */
+/* Global Focus Indicator - DYNAMIC GLOW */
 *:focus {
     border: double $accent;
-    tint: $accent 12%;
-    background: $surface 40%;
-    transition: tint 250ms, background 250ms;
+    tint: $accent 15%;
+    background: $surface 55%;
+    transition: tint 250ms, background 250ms, border 250ms;
     text-style: bold;
 }
 
-/* Widget Specific Focus Overrides */
-ListView:focus > ListItem {
-    background: $surface 20%;
-}
-ListView:focus > ListItem.highlight {
-    background: $accent 25%;
-    color: $text;
-}
-
-Input:focus {
-    border: double $accent;
-    background: $surface 60%;
-    tint: $accent 10%;
-}
-
-/* ----------------------- */
-/* ORIGINAL WIDGET STYLES  */
-/* ----------------------- */
-
-/* CommandPalette Styling */
-CommandPalette {
-    width: 60%;
-    height: auto;
-    max-height: 50%;
-    margin-top: 2;
-    background: $surface;
-    border: wide $accent;
-    layer: overlay;
-    display: none; /* Hidden by default */
-}
-CommandPalette.visible {
-    display: block;
-}
-
-/* CommandBlock Styling (Output) */
-CommandBlock {
-    height: auto;
-    max_height: 50;
-    margin: 1;
-    background: $surface;
-    border: solid $border;
-}
-CommandBlock .header {
-    background: $border;
-    color: $text;
-    padding: 0 1;
-    height: 1;
-    dock: top;
-}
-CommandBlock RichLog {
-    height: auto;
-    min_height: 5;
-    background: $background;
-    color: $text;
-    padding: 1;
-}
-
-/* CommandBlock Styling (Output) */
-
-
-/* ----------------------- */
-/* WIDGET SPECIFICS        */
-/* ----------------------- */
-
-ClockWidget {
-    dock: right;
-    width: auto;
-}
-
-ProjectStatusWidget, MarketplaceWidget, MCPWidget {
-    margin-bottom: 2;
-    border-bottom: solid $border;
-    padding-bottom: 1;
-}
-
-WorldMapWidget {
-    width: 100%;
+/* Sidebar Styling */
+#sidebar {
+    width: 30;
     height: 100%;
-    content-align: center middle;
+    background: $boost 10%;
+    border-right: tall $accent 25%;
+    padding: 1 2;
+}
+
+.logo {
     color: $accent;
+    text-style: bold;
+    margin-bottom: 2;
 }
 
-/* Button Styling in Dashboard */
-#right-col > Button {
+.nav-header {
+    color: $text 60%;
+    margin: 1 0;
+    text-style: italic;
+}
+
+/* Dashboard Layout */
+#main-area {
+    layout: grid;
+    grid-size: 3;
+    grid-columns: 1.2fr 2.5fr 1fr;
+    grid-gutter: 2;
+    padding: 1 2;
+}
+
+#left-col, #center-col, #right-col {
+    background: $surface 35%;
+    border: round $accent 20%;
+    padding: 1 2;
+    margin: 1;
+    height: 100%;
+    overflow-y: auto;
+}
+
+#center-col {
+    background: $surface 25%;
+    border: tall $accent 30%;
+}
+
+/* Widget Specifics */
+ClockWidget {
+    background: transparent;
+    color: $accent;
+    text-style: bold;
+    content-align: center middle;
+    margin: 1 0;
+}
+
+ProjectStatusWidget {
+    border: none;
+    background: $surface 20%;
+    padding: 1;
+    margin: 1 0;
+}
+
+UsageTrackerWidget {
+    background: $surface 30%;
+    border: round $accent 25%;
+}
+
+/* Kanban */
+.kanban-col {
+    background: $surface 15%;
+    border: solid $accent 10%;
+    margin: 0 1;
+}
+
+.kanban-col:focus-within {
+    border: double $accent 60%;
+    background: $accent 5%;
+}
+
+.col-header {
+    background: $accent 20%;
+    color: $text;
+    text-style: bold;
+    padding: 0 1;
+    content-align: center middle;
     width: 100%;
-    margin-bottom: 1;
+}
+
+.col-header.todo {
+    color: $error;
+    background: $error 15%;
+}
+
+.col-header.doing {
+    color: $warning;
+    background: $warning 15%;
+}
+
+.col-header.done {
+    color: $success;
+    background: $success 15%;
+}
+
+/* Buttons */
+Button {
+    background: $accent 25%;
+    border: tall $accent 40%;
+    color: $text;
+    transition: background 200ms;
+}
+
+Button:hover {
+    background: $accent 50%;
+}
+
+Button.-active {
+    background: $accent;
+    color: $background;
+}
+
+/* Console Drawer */
+ConsoleDrawer {
+    dock: bottom;
+    height: 3;
+    background: $surface 80%;
+    border-top: tall $accent;
+    transition: height 300ms;
+}
+
+#drawer-header {
     background: $accent 30%;
-    border: solid $accent;
-}
-
-/* ----------------------- */
-/* TERMINAL VIEW STYLES    */
-/* ----------------------- */
-
-#main-container {
-    width: 100%;
-    height: 100%;
-    background: $background;
-}
-
-#terminal-scroll {
-    width: 100%;
-    height: 100%;
-    background: $background;
+    color: $accent;
+    padding: 0 2;
 }
 
 #terminal-log {
-    width: 100%;
-    height: auto;
-    min_height: 10;
     background: $background;
     color: $text;
     padding: 1 2;
 }
 
-/* ConsoleDrawer Styling */
-ConsoleDrawer {
-    dock: bottom;
-    height: 3;
-    background: $surface;
-    border: round $accent;
+/* Command Palette Modal */
+CommandPalette {
+    align: center top;
+    padding: 4 8;
 }
 
-ConsoleDrawer RichLog {
-    height: 1fr;
+#palette-container {
+    width: 60%;
+    height: auto;
+    max-height: 20;
     background: $surface;
+    border: tall $accent;
+    padding: 1 2;
 }
 
-ConsoleDrawer Input {
+#palette-input {
     border: none;
-    background: $surface;
-    height: 1;
+    background: $surface-lighten-1 10%;
+    margin-bottom: 1;
 }
 
-#drawer-header {
-    background: $accent 20%;
-    color: $accent;
-    padding: 0 1;
-}
-
-/* StatusWidget Styling */
-StatusWidget {
-    padding: 0 1;
-    color: $text;
+#palette-list {
+    height: auto;
+    background: transparent;
+    border: none;
 }

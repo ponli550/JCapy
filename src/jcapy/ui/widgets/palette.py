@@ -1,6 +1,5 @@
 from textual.screen import ModalScreen
-from textual.widgets import OptionList
-from jcapy.ui.widgets.kinetic_input import KineticInput
+from textual.widgets import OptionList, Input
 import difflib
 from textual.containers import Vertical
 from textual.app import ComposeResult
@@ -35,10 +34,10 @@ class CommandPalette(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="palette-container"):
-            yield KineticInput(placeholder="Type a command...", id="palette-input")
+            yield Input(placeholder="Type a command...", id="palette-input")
             yield OptionList(*COMMANDS, id="palette-list")
 
-    def on_input_changed(self, event: KineticInput.Changed) -> None:
+    def on_input_changed(self, event: Input.Changed) -> None:
         """Filter the list based on input using fuzzy matching."""
         query = event.value.lower()
         if not query:
@@ -54,10 +53,31 @@ class CommandPalette(ModalScreen):
         opt_list.clear_options()
         opt_list.add_options(filtered)
 
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle Enter key on the input field."""
+        opt_list = self.query_one(OptionList)
+        if opt_list.option_count > 0:
+            # If there's a match, use the first one
+            selected = str(opt_list.get_option_at_index(0).prompt)
+            cmd_name = selected.split(":")[0].strip()
+            self.dismiss(result=cmd_name)
+        elif event.value.strip():
+            # If no match but text exists, try to run text directly
+            self.dismiss(result=event.value.strip())
+
+    def on_key(self, event) -> None:
+        """Global key handling for the modal."""
+        if event.key == "escape":
+            self.dismiss(None)
+        elif event.key == "down":
+            self.query_one(OptionList).focus()
+        elif event.key == "up":
+            # If focus is on list and we hit up at index 0, focus input?
+            # Textual handles focus cycling mostly, but let's be explicit if needed.
+            pass
+
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle selection."""
-        # For now, just print or notify
-        # In real implementation, this would trigger the actual command
         selected = str(event.option.prompt)
         cmd_name = selected.split(":")[0].strip()
         self.dismiss(result=cmd_name)
