@@ -1,12 +1,14 @@
 from textual.screen import Screen
-from textual.widgets import Button, Static, Header, Footer
-from textual.containers import Grid, Vertical, Horizontal
+from textual.widgets import Static, Button, TextArea, ListView, ListItem, Label, DirectoryTree, RichLog, Input, Header, Footer
+from textual.widget import Widget
+from textual.containers import Vertical, Horizontal, Grid, Container
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.events import Click
 from textual.reactive import reactive
 import uuid
 from jcapy.config import get_dashboard_layout, set_dashboard_layout
+from jcapy.ui.messages import ConfigUpdated
 from jcapy.ui.widgets.dashboard_widgets import (
     ClockWidget,
     KanbanWidget,
@@ -17,6 +19,7 @@ from jcapy.ui.widgets.dashboard_widgets import (
     NewsWidget,
     UsageTrackerWidget,
     ScratchpadWidget,
+    StatusWidget,
     WidgetRegistry
 )
 
@@ -33,22 +36,44 @@ class DashboardScreen(Screen):
     edit_mode = reactive(False)
     selected_widget_id = reactive(None)
     selected_widget_name = reactive(None)
+    is_right_col_collapsed = reactive(False)
+    zen_mode = reactive(False)
 
     BINDINGS = [
         Binding("e", "toggle_edit_mode", "Toggle Edit Layout"),
+        Binding("c", "toggle_right_col", "Toggle Marketplace"),
         Binding("+", "add_widget", "Add (+)", show=False),
         Binding("-", "remove_widget", "Remove (-)", show=False),
         Binding("x", "remove_widget", "Remove (x)", show=False),
+        # Navigation
+        Binding("space", "select_widget", "Select Widget"),
+        Binding("h,left", "focus_left", "Focus Left", show=False),
+        Binding("l,right", "focus_right", "Focus Right", show=False),
+        Binding("j,down", "focus_down", "Focus Down", show=False),
+        Binding("k,up", "focus_up", "Focus Up", show=False),
+        Binding("z", "toggle_zen_mode", "Zen Mode"),
     ]
 
     CSS = """
-    DashboardScreen {
-        layout: horizontal;
-        background: $background;
-    }
-
     DashboardScreen.edit-mode-active {
         background: #0a192f;
+    }
+
+    DashboardScreen.zen-mode-active #sidebar,
+    DashboardScreen.zen-mode-active #left-col,
+    DashboardScreen.zen-mode-active #right-col {
+        display: none;
+    }
+
+    DashboardScreen.zen-mode-active #main-area {
+        grid-size: 1;
+        grid-columns: 1fr;
+        padding: 0;
+    }
+
+    DashboardScreen.zen-mode-active #center-col {
+        border: none;
+        background: transparent;
     }
 
     #sidebar {
@@ -64,20 +89,41 @@ class DashboardScreen(Screen):
         layout: grid;
         grid-size: 3;
         grid-columns: 1.2fr 2.5fr 1fr;
-        grid-gutter: 1;
-        padding: 0 1;
+        grid-gutter: 2;
+        padding: 1 2;
+        height: 1fr;
+    }
+
+    #main-area.right-collapsed {
+        grid-columns: 1.2fr 2.5fr 5;
     }
 
     #left-col, #center-col, #right-col {
+        background: $surface 40%;
+        border: round $accent 30%;
+        padding: 1 2;
+        margin: 1;
         height: 100%;
         overflow-y: auto;
-        padding: 0 1;
     }
 
+    /* Glass Zones */
+    #left-col {
+        background: $surface 45%;
+    }
     #center-col {
-        background: $surface 20%;
-        border-right: solid $accent 5%;
-        border-left: solid $accent 5%;
+        background: $surface 35%;
+        border: tall $accent 20%;
+    }
+    #right-col {
+        background: $surface 45%;
+    }
+
+    #right-col.collapsed {
+        width: 5;
+        overflow: hidden;
+        border-right: none;
+        background: $boost 30%;
     }
 
     .selected-widget {
@@ -90,6 +136,21 @@ class DashboardScreen(Screen):
         color: $accent;
         text-style: bold;
         margin-bottom: 1;
+    }
+
+    .nav-header {
+        color: $text 50%;
+        margin: 1 0;
+    }
+
+    #btn-manage {
+        margin-top: 1;
+        background: $accent 20%;
+        border: none;
+    }
+
+    #sidebar Button:hover {
+        background: $accent 40%;
     }
 
     /* Kanban specific interactive styles */
@@ -118,6 +179,10 @@ class DashboardScreen(Screen):
         border: none;
         background: $accent 10%;
     }
+
+    .hidden {
+        display: none;
+    }
     """
 
     def compose(self) -> ComposeResult:
@@ -126,12 +191,15 @@ class DashboardScreen(Screen):
         # Sidebar (Logo + Context)
         with Vertical(id="sidebar"):
             yield Static(JCAPY_LOGO_COMPACT, classes="logo")
+            yield StatusWidget()
+            yield Static("⎯⎯⎯⎯⎯⎯ [dim]Navigation[/] ⎯⎯⎯⎯⎯⎯", classes="nav-header")
             # We don't use dynamic layout for sidebar yet, keeping it as a steady anchor
             yield ClockWidget()
             yield ProjectStatusWidget()
 
             # Static Controls (moved to sidebar bottom)
-            yield Static("\n" * 2) # Spacer
+            yield Static("\n" * 1)
+            yield Button("⚙️  Manage", id="btn-manage", variant="default")
             yield Button("🔍 Find", id="btn-find", variant="primary")
             yield Button("🚪 Quit", id="btn-quit", variant="error")
 
@@ -166,12 +234,54 @@ class DashboardScreen(Screen):
             unique_id = str(uuid.uuid4())[:8]
             return widget_cls(id=f"w-{name}-{unique_id}")
 
-        # Fallback
-        return Static(f"Unknown Widget: {name}")
+        # Skip unknown widgets gracefully
+        return None
 
     def on_mount(self):
         # Initial states
-        pass
+        self._refresh_grid_layout()
+
+    def on_resize(self) -> None:
+        """Handle terminal resize."""
+        self._refresh_grid_layout()
+
+    def _refresh_grid_layout(self) -> None:
+        """Update grid columns based on active widgets and terminal width."""
+        layout = get_dashboard_layout()
+        has_left = len(layout.get("left_col", [])) > 0
+        has_center = len(layout.get("center_col", [])) > 0
+        has_right = len(layout.get("right_col", [])) > 0
+
+        # Build column spec
+        cols = []
+
+        # Responsive: Switch to 1 column if narrow
+        is_narrow = self.size.width < 80
+
+        if is_narrow:
+            cols = ["1fr"]
+        else:
+            if has_left: cols.append("1.2fr")
+            if has_center: cols.append("2.5fr")
+            if has_right: cols.append("1fr")
+
+        # Fallback if everything empty
+        if not cols:
+            cols = ["1fr"]
+
+        try:
+            area = self.query_one("#main-area")
+            area.styles.grid_size = len(cols)
+            area.styles.grid_columns = " ".join(cols)
+
+            # Show/Hide columns
+            # In narrow mode, we don't hide, they just stack (if we use Vertical)
+            # Actually, main-area IS a Grid. If grid-size is 1, they stack automatically.
+            self.query_one("#left-col").set_class(not has_left, "hidden")
+            self.query_one("#center-col").set_class(not has_center, "hidden")
+            self.query_one("#right-col").set_class(not has_right, "hidden")
+        except:
+            pass
 
     def watch_edit_mode(self, active: bool) -> None:
         """Handle visual changes when edit mode toggles."""
@@ -185,6 +295,19 @@ class DashboardScreen(Screen):
         for widget in self.query("*"):
             if hasattr(widget, "toggle_highlight"):
                 widget.toggle_highlight(active)
+
+        else:
+            self.remove_class("edit-mode-active")
+
+    def watch_zen_mode(self, active: bool) -> None:
+        """Handle visual changes when zen mode toggles."""
+        self.set_class(active, "zen-mode-active")
+        status = "ON" if active else "OFF"
+        self.notify(f"Zen Mode: {status}", severity="information")
+
+    def action_toggle_zen_mode(self) -> None:
+        """Toggle the Zen focus mode."""
+        self.zen_mode = not self.zen_mode
 
     def action_toggle_edit_mode(self):
         self.edit_mode = not self.edit_mode
@@ -375,7 +498,92 @@ class DashboardScreen(Screen):
         btn_id = event.button.id
         if btn_id == "btn-quit":
             self.app.exit()
+        elif btn_id == "btn-manage":
+            self.app.switch_screen("management")
         elif btn_id == "btn-find":
             # Trigger custom action defined in app.py
             self.app.action_toggle_palette()
         # Add other handlers as needed
+
+    def on_config_updated(self, message: ConfigUpdated) -> None:
+        """Handle configuration updates."""
+        if message.key.startswith("dashboard_layout") or message.key == "*":
+            # Refresh layout if layout config changed
+            self.notify("Dashboard layout updated!")
+            # Rebuild all columns to be safe
+            self._rebuild_column("left_col")
+            self._rebuild_column("center_col")
+            self._rebuild_column("right_col")
+            # Dynamic grid refresh
+            self._refresh_grid_layout()
+    async def on_descendant_focus(self, event) -> None:
+        """Expand right column if focus enters it."""
+        if self.edit_mode: return
+        # Check if focus is inside right-col
+        try:
+            right_col = self.query_one("#right-col")
+            if event.widget in right_col.walk_children():
+                self.is_right_col_collapsed = False
+        except: pass
+
+    async def on_descendant_blur(self, event) -> None:
+        """Potentially collapse right column if focus leaves it."""
+        if self.edit_mode: return
+        self.call_after_refresh(self._auto_collapse_if_needed)
+
+    def _auto_collapse_if_needed(self) -> None:
+        focused = self.app.focused
+        if not focused: return
+        try:
+            # If focus moved to left or center, collapse right-col
+            left_center = self.query("#left-col, #center-col")
+            for col in left_center:
+                if focused in col.walk_children():
+                    self.is_right_col_collapsed = True
+                    break
+        except: pass
+
+    def action_focus_left(self) -> None:
+        self.screen.focus_previous() # Basic cycle for now, can improve with geometry
+
+    def action_focus_right(self) -> None:
+        self.screen.focus_next()
+
+    def action_focus_down(self) -> None:
+        self.screen.focus_next()
+
+    def action_focus_up(self) -> None:
+        self.screen.focus_previous()
+
+    def action_select_widget(self) -> None:
+        """Show widget picker modal."""
+        # Check if we are in an input field (editing text)
+        focused = self.app.focused
+        if isinstance(focused, (Button, Static)) or focused is None:
+             pass # Safe to trigger
+        elif str(type(focused)).find("Input") != -1 or str(type(focused)).find("TextArea") != -1:
+             return # Don't interrupt typing
+
+        from jcapy.ui.screens.widget_catalog import WidgetCatalogScreen
+        # Reuse catalog screen but potentially in a 'select' mode?
+        # For now, let's just use it to FIND a widget to focus.
+        # Actually WidgetCatalogScreen is for ADDING. We need a 'focus selector'.
+        # Let's build a simple bespoke modal here or use CommandPalette logic.
+
+    def action_toggle_palette(self) -> None:
+        """Toggle the command palette."""
+        self.app.action_toggle_palette()
+
+    def action_toggle_right_col(self) -> None:
+        """Toggle the right column (Marketplace)."""
+        self.is_right_col_collapsed = not self.is_right_col_collapsed
+
+    def watch_is_right_col_collapsed(self, value: bool) -> None:
+        """React to right column collapse change."""
+        try:
+            area = self.query_one("#main-area")
+            col = self.query_one("#right-col")
+            area.set_class(value, "right-collapsed")
+            col.set_class(value, "collapsed")
+        except:
+            pass # App might still be mounting

@@ -67,6 +67,21 @@ def run_suggest(args):
         console.print(f"  • [green]jcapy manage[/green]: Open the Dashboard.")
     console.print(f"  • [green]jcapy doctor[/green]: Verify system health.")
 
-def run_tui(args=None):
-    from jcapy.ui.tui import run as _tui_run
-    _tui_run(get_active_library_path())
+def run_tui(args=None, start_screen="dashboard"):
+    # If args is a namespace (from argparse), check if it has start_screen
+    if args and hasattr(args, 'screen'):
+        start_screen = args.screen
+
+    # We are switching to the Textual App (App.py) as the primary TUI
+    # The old curses TUI is in jcapy.ui.tui.run
+
+    # Try to launch Textual App first
+    try:
+        from jcapy.ui.app import JCapyApp
+        app = JCapyApp(start_screen=start_screen)
+        app.run()
+    except Exception as e:
+        # Fallback or error logging
+        print(f"Error launching TUI: {e}")
+        # import traceback
+        # traceback.print_exc()

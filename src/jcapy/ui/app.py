@@ -1,12 +1,19 @@
-from textual.app import App, ComposeResult
+from textual.app import App, ComposeResult, AwaitMount
 from textual.widgets import Header, Footer, Static, RichLog
 from textual.containers import Container, VerticalScroll
+from textual.screen import Screen
 from textual import work
 
-from jcapy.core.plugins import get_registry
+from jcapy.core.plugins import get_registry, MockArgs
 from jcapy.core.base import CommandResult, ResultStatus
 from jcapy.ui.screens.dashboard import DashboardScreen
+from jcapy.ui.screens.management_screen import ManagementScreen
+from jcapy.ui.screens.startup import StartupScreen
 from jcapy.ui.widgets.palette import CommandPalette
+from jcapy.ui.messages import ConfigUpdated
+from jcapy.config import CONFIG_MANAGER
+from jcapy.ui.theme import THEMES
+import shlex
 
 
 class JCapyApp(App):
@@ -16,7 +23,8 @@ class JCapyApp(App):
     BINDINGS = [
         ("ctrl+p", "toggle_palette", "Command Palette"),
         ("ctrl+c", "quit", "Quit"),
-        ("d", "dashboard", "Dashboard"),
+        ("d", "switch_screen('dashboard')", "Dashboard"),
+        ("m", "switch_screen('management')", "Manage"),
         ("q", "quit", "Quit"),
         ("/", "toggle_palette", "Search"),
         (":", "toggle_command_mode", "Command Mode"),
@@ -25,7 +33,24 @@ class JCapyApp(App):
         ("`", "toggle_console", "Toggle Console"),
     ]
 
-    SCREENS = {"dashboard": DashboardScreen}
+    SCREENS = {
+        "dashboard": DashboardScreen,
+        "management": ManagementScreen,
+        "startup": StartupScreen,
+    }
+
+    def __init__(self, start_screen: str = "dashboard", **kwargs):
+        self.start_screen = start_screen
+        super().__init__(**kwargs)
+
+    def switch_screen(self, screen: str | Screen) -> AwaitMount:
+        """
+        Override switch_screen to prevent crash when stack is empty.
+        If we are on the root/default screen, we push instead of switch.
+        """
+        if len(self._screen_stack) <= 1:
+             return self.push_screen(screen)
+        return super().switch_screen(screen)
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
@@ -37,10 +62,65 @@ class JCapyApp(App):
 
     def on_mount(self) -> None:
         """Called when app starts."""
+        # Bind config manager for reactive updates
+        from jcapy.config import CONFIG_MANAGER
+        CONFIG_MANAGER.bind_app(self)
+
         # Write welcome message so terminal view isn't blank
         log = self.query_one("#terminal-log", RichLog)
         log.write("[bold cyan]JCapy Terminal[/bold cyan]  [dim]Press Ctrl+P or : to run commands[/dim]\n")
-        self.push_screen("dashboard")
+
+        # Apply startup animation (unless reduced motion)
+        from jcapy.ui.animations import should_animate
+        target = self.start_screen if self.start_screen in self.SCREENS else "dashboard"
+
+        if should_animate():
+             # Push Startup with a clear landing target
+             self.push_screen(StartupScreen(next_screen=target))
+        else:
+             # Fast-path: go straight to target
+             self.push_screen(target)
+
+    def on_config_updated(self, message: ConfigUpdated) -> None:
+        """Handle configuration updates."""
+        if message.key == "ux.theme" or message.key == "*":
+            self.apply_theme(message.value)
+            self.notify(f"Theme changed to: {message.value}")
+
+        if message.key == "core.persona":
+            self.notify(f"Switching persona to: {message.value}")
+            # Persona application logic is handled by the command/config logic mostly,
+            # but we might need to trigger visual refreshes if persona implies theme/layout changes.
+            # The apply_persona function ALREADY updates config keys for dashboard_layout and theme.
+            # So those specific ConfigUpdated events will fire separately and be handled.
+            pass
+
+        if message.key == "commands.disabled":
+            get_registry().apply_disabled_from_config()
+            self.notify("Enabled/Disabled commands updated.")
+            # Refresh command palette if open?
+            # It re-queries registry on open, so just closing/opening is enough.
+
+    def apply_theme(self, theme_name: str) -> None:
+        """Apply a theme by injecting CSS variables."""
+        theme = THEMES.get(theme_name, THEMES["default"])
+
+        # Try to set variables directly if supported (Textual 0.38+)
+        if hasattr(self.stylesheet, "set_variables"):
+            try:
+                self.stylesheet.set_variables(theme)
+                self.refresh_css()
+                return
+            except Exception:
+                pass
+
+        # Fallback: Ingest variables as CSS rules
+        css_rules = ["Screen {"]
+        for key, value in theme.items():
+            css_rules.append(f"    ${key}: {value};")
+        css_rules.append("}")
+        self.stylesheet.add_source("\n".join(css_rules))
+        self.refresh_css()
 
     # ------------------------------------------------------------------
     # Command Palette Actions
@@ -72,7 +152,25 @@ class JCapyApp(App):
     def run_command(self, command_str: str) -> None:
         """Execute a command via the Shared Engine and route the result."""
         # --- Shell Suspension ---
-        cmd_clean = command_str.strip().lower()
+        cmd_clean = command_str.strip().split(" ")[0].lower()
+
+        # 0. Check if command is interactive → suspend TUI and run directly
+        registry = get_registry()
+        canonical = registry._aliases.get(cmd_clean, cmd_clean)
+
+        if canonical in registry._interactive:
+            handler = registry.get_handler(cmd_clean)
+            if handler:
+                parts = shlex.split(command_str)
+                mock_args = MockArgs(parts[1:])
+                with self.suspend():
+                    try:
+                        handler(mock_args)  # Run with mock args
+                    except Exception as e:
+                        print(f"\n❌ Error: {e}")
+                    input("\nPress Enter to return to JCapy Dashboard...")
+                return
+
         if cmd_clean in ("shell", "suspend"):
             with self.suspend():
                 import subprocess
@@ -87,8 +185,58 @@ class JCapyApp(App):
         # Show immediate feedback (fix for "stuck" perception)
         self.call_from_thread(self._render_command_start, command_str)
 
+        log = self.query_one("#terminal-log", RichLog)
+
+        def streaming_callback(val: str):
+            # Route to main log
+            self.call_from_thread(log.write, self._ansi_to_text(val))
+            # Route to Dashboard Console Drawer if present
+            try:
+                drawer = self.screen.query_one("#dashboard-console")
+                self.call_from_thread(drawer.write, self._ansi_to_text(val))
+            except:
+                pass
+
         registry = get_registry()
-        result: CommandResult = registry.execute_string(command_str)
+        result: CommandResult = registry.execute_string(command_str, log_callback=streaming_callback)
+
+        # --- Shell Fallback ---
+        if result.status == ResultStatus.FAILURE and result.error_code == "UNKNOWN_COMMAND":
+            import subprocess
+            try:
+                # Fallback to system shell for unknown commands
+                process = subprocess.Popen(
+                    command_str,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True
+                )
+
+                # Reset duration start for shell command
+                shell_start = time.time()
+
+                # Stream output
+                if process.stdout:
+                    for line in process.stdout:
+                        streaming_callback(line)
+
+                process.wait()
+                elapsed = time.time() - shell_start
+
+                result = CommandResult(
+                    status=ResultStatus.SUCCESS if process.returncode == 0 else ResultStatus.FAILURE,
+                    message=f"System command '{cmd_clean}' completed." if process.returncode == 0 else f"System command '{cmd_clean}' failed.",
+                    duration=elapsed
+                )
+            except Exception as e:
+                result = CommandResult(
+                    status=ResultStatus.FAILURE,
+                    message=f"Shell error: {str(e)}",
+                    error_code="SHELL_ERROR"
+                )
 
         # Render output to the terminal log
         self.call_from_thread(self._render_result, command_str, result)
@@ -110,6 +258,18 @@ class JCapyApp(App):
     # Rendering Helpers
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _ansi_to_text(entry: str):
+        """Convert an ANSI-encoded string to a Rich Text object for RichLog.
+
+        Captured stdout from commands using Rich Console contains raw ANSI
+        escape codes (e.g. \\x1b[36m).  RichLog.write() with markup=True
+        cannot parse these — it expects Rich markup like [bold cyan].
+        Text.from_ansi() handles the conversion correctly.
+        """
+        from rich.text import Text
+        return Text.from_ansi(entry.rstrip("\n"))
+
     def _render_command_start(self, command_str: str) -> None:
         """Show a loading indicator."""
         log = self.query_one("#terminal-log", RichLog)
@@ -125,7 +285,7 @@ class JCapyApp(App):
             drawer.write(f"\n[bold green]❯ {command_str}[/]")
             for entry in result.logs:
                 if entry.strip():
-                    drawer.write(entry)
+                    drawer.write(self._ansi_to_text(entry))
         except:
             pass
 
@@ -134,10 +294,12 @@ class JCapyApp(App):
         color = "green" if result.status == ResultStatus.SUCCESS else "red"
         log.write(f"\n[bold {color}]{status_icon}[/bold {color}] [bold]> {command_str}[/bold]  [dim]{result.duration:.2f}s[/dim]")
 
-        # Logs (captured stdout / structured logs)
-        for entry in result.logs:
-            if entry.strip():
-                log.write(entry)
+        # Logs are now streamed in real-time via the callback in run_command.
+        # We skip rendering result.logs here to avoid duplicates, unless it's a legacy non-TUI path.
+        # (captured stdout / structured logs) — convert ANSI to Rich Text
+        # for entry in result.logs:
+        #     if entry.strip():
+        #         log.write(self._ansi_to_text(entry))
 
         # Modern: Render structured content (e.g. Markdown reports)
         if result.data and isinstance(result.data, dict) and "content" in result.data:

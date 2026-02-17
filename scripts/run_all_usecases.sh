@@ -14,6 +14,17 @@ RESET='\033[0m'
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHOWCASE_DIR="$PROJECT_ROOT/showcase"
 
+# Detect Python interpreter
+if [ -f "$PROJECT_ROOT/venv/bin/python" ]; then
+    PYTHON_CMD="$PROJECT_ROOT/venv/bin/python"
+elif [ -f "$PROJECT_ROOT/.venv/bin/python" ]; then
+    PYTHON_CMD="$PROJECT_ROOT/.venv/bin/python"
+else
+    PYTHON_CMD="python3"
+fi
+
+JCAPY_CMD="$PYTHON_CMD -m jcapy"
+
 echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${RESET}"
 echo -e "${CYAN}║  🚀 JCapy Master Demo: Interactive Command Center        ║${RESET}"
 echo -e "${CYAN}║  One-Army Orchestrator • Build Like a Team of Ten        ║${RESET}"
@@ -93,7 +104,7 @@ echo ""
 # Feature 1: System Health Check
 echo -e "${YELLOW}[1/5] System Health Check${RESET}"
 echo -e "  Running: ${CYAN}jcapy doctor${RESET}"
-if jcapy doctor; then
+if $JCAPY_CMD doctor; then
     echo -e "${GREEN}✔ System health verified${RESET}\n"
 else
     echo -e "${YELLOW}⚠ Some checks failed (non-critical)${RESET}\n"
@@ -103,7 +114,7 @@ sleep 1
 # Feature 2: Project Structure Visualization
 echo -e "${YELLOW}[2/5] Project Structure Mapping${RESET}"
 echo -e "  Running: ${CYAN}jcapy map${RESET}"
-if jcapy map .; then
+if $JCAPY_CMD map .; then
     echo -e "${GREEN}✔ Project structure mapped${RESET}\n"
 else
     echo -e "${RED}✘ Map generation failed${RESET}\n"
@@ -113,7 +124,7 @@ sleep 1
 # Feature 3: Widget Registry
 echo -e "${YELLOW}[3/5] Widget Registry Check${RESET}"
 echo -e "  Verifying: Dashboard widgets are registered"
-if python3 -c "import sys; sys.path.insert(0, '$PROJECT_ROOT/src'); from jcapy.ui.widgets.dashboard_widgets import WidgetRegistry; print(f'✔ {len(WidgetRegistry.get_all())} widgets registered')"; then
+if $PYTHON_CMD -c "import sys; sys.path.insert(0, '$PROJECT_ROOT/src'); from jcapy.ui.widgets.dashboard_widgets import WidgetRegistry; print(f'✔ {len(WidgetRegistry.get_all())} widgets registered')"; then
     echo -e "${GREEN}✔ Widget registry verified${RESET}\n"
 else
     echo -e "${RED}✘ Widget registry check failed${RESET}\n"
@@ -123,7 +134,7 @@ sleep 1
 # Feature 4: Marketplace Service
 echo -e "${YELLOW}[4/5] Marketplace Discovery${RESET}"
 echo -e "  Verifying: MarketplaceService returns extensions"
-if python3 -c "import sys; sys.path.insert(0, '$PROJECT_ROOT/src'); from jcapy.core.marketplace import MarketplaceService; items = MarketplaceService.get_available_items(); print(f'✔ {len(items)} extensions available in marketplace')"; then
+if $PYTHON_CMD -c "import sys; sys.path.insert(0, '$PROJECT_ROOT/src'); from jcapy.core.marketplace import MarketplaceService; items = MarketplaceService.get_available_items(); print(f'✔ {len(items)} extensions available in marketplace')"; then
     echo -e "${GREEN}✔ Marketplace service verified${RESET}\n"
 else
     echo -e "${RED}✘ Marketplace check failed${RESET}\n"
@@ -133,7 +144,7 @@ sleep 1
 # Feature 5: Plugin System
 echo -e "${YELLOW}[5/5] Plugin Architecture${RESET}"
 echo -e "  Verifying: Plugin hooks for commands and widgets"
-if python3 -c "import sys; sys.path.insert(0, '$PROJECT_ROOT/src'); from jcapy.core.plugins import CommandRegistry; r = CommandRegistry(); assert hasattr(r, '_load_single_plugin'); print('✔ Plugin system ready')"; then
+if $PYTHON_CMD -c "import sys; sys.path.insert(0, '$PROJECT_ROOT/src'); from jcapy.core.plugins import CommandRegistry; r = CommandRegistry(); assert hasattr(r, '_load_single_plugin'); print('✔ Plugin system ready')"; then
     echo -e "${GREEN}✔ Plugin architecture verified${RESET}\n"
 else
     echo -e "${RED}✘ Plugin system check failed${RESET}\n"

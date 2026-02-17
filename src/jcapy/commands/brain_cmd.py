@@ -36,6 +36,10 @@ def link_brain(path):
 
 def ask_brain(question):
     """RAG-lite: Ask a question to the Knowledge Graph"""
+    # 0. Handle Piping & MockArgs
+    piped_data = getattr(question, 'piped_data', None) if hasattr(question, 'piped_data') else None
+    q_str = question if isinstance(question, str) else " ".join(getattr(question, '_tokens', []))
+
     lib_path = get_active_library_path()
 
     if not os.path.exists(lib_path):
@@ -45,17 +49,17 @@ def ask_brain(question):
     console.print(f"[bold magenta]🧠 Thinking...[/bold magenta] [dim](Scanning {lib_path})[/dim]")
 
     # 1. Scan for Knowledge
-    # Simple strategy: Read all .md files (limit to top 10 recent or small files for now to avoid token limits)
-    # Refinement Level 2: Simple keyword match to filter relevant files?
-
     md_files = glob.glob(os.path.join(lib_path, "**/*.md"), recursive=True)
-
     context_blob = ""
     file_count = 0
     max_files = 20 # Safety limit
 
+    if piped_data:
+        context_blob = f"--- PIPED CONTEXT ---\n{piped_data}\n\n"
+        file_count += 1
+
     # Priority: Files with matching keywords in filename
-    keywords = question.lower().split()
+    keywords = q_str.lower().split()
     scored_files = []
 
     for f in md_files:
@@ -63,10 +67,8 @@ def ask_brain(question):
         fname = os.path.basename(f).lower()
         for k in keywords:
             if k in fname: score += 10
-
         scored_files.append((score, f))
 
-    # Sort by score desc, then mtime
     scored_files.sort(key=lambda x: (x[0], os.path.getmtime(x[1])), reverse=True)
 
     used_files = []
@@ -74,9 +76,7 @@ def ask_brain(question):
         try:
             with open(fpath, 'r') as f:
                 content = f.read()
-                # Simple token limit check (very rough char count)
                 if len(context_blob) + len(content) > 50000: break
-
                 context_blob += f"\n\n--- FILE: {os.path.basename(fpath)} ---\n{content}"
                 used_files.append(os.path.basename(fpath))
                 file_count += 1
@@ -93,7 +93,7 @@ You are JCapy, an intelligent coding assistant using a local knowledge graph (Ro
 Answer the user's question based STRICTLY on the provided Context.
 If the answer is not in the context, say "I don't have that information in my brain yet."
 
-QUESTION: {question}
+QUESTION: {q_str}
 
 --- KNOWLEDGE GRAPH CONTEXT ({file_count} files) ---
 {context_blob}
@@ -135,6 +135,6 @@ def run_brain(args):
             link_brain(args.path)
         elif args.subcommand == 'ask':
             # This path is usually handled by 'jcapy ask' top-level alias, but good to have here
-            ask_brain(" ".join(args.question))
+            ask_brain(args)
     else:
         console.print("[yellow]Usage: jcapy brain [link|ask] ...[/yellow]")

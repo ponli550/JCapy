@@ -11,6 +11,28 @@ import yaml
 from typing import Dict, Any, Callable, Optional, List
 
 from jcapy.core.base import CommandResult, ResultStatus
+from jcapy.core.history import HISTORY_MANAGER
+
+
+class MockArgs:
+    """Lightweight namespace for passing arguments to legacy handlers."""
+    def __init__(self, tokens: list, piped_data: Optional[str] = None):
+        self._tokens = tokens
+        self.piped_data = piped_data
+
+    def __getattr__(self, item):
+        return None
+
+class StreamingIO(io.StringIO):
+    """Overrides write() to trigger a callback for real-time streaming."""
+    def __init__(self, callback: Optional[Callable[[str], None]] = None):
+        super().__init__()
+        self.callback = callback
+
+    def write(self, s: str) -> int:
+        if self.callback:
+            self.callback(s)
+        return super().write(s)
 
 
 class CommandRegistry:
@@ -24,6 +46,7 @@ class CommandRegistry:
         self._aliases: Dict[str, str] = {}
         self._arguments: Dict[str, Callable] = {} # Hook for argparse setup
         self._interactive: set = set()  # Commands that need raw TTY (can't run in TUI)
+        self._disabled: set = set()     # Commands hidden from execution by config
 
     def register(self, name, handler: Callable = None, description: str = None, aliases: List[str] = None, setup_parser: Callable = None, interactive: bool = False):
         """
@@ -45,6 +68,7 @@ class CommandRegistry:
              description = getattr(cmd, 'description', "")
              aliases = getattr(cmd, 'aliases', [])
              setup_parser = cmd.setup_parser
+             interactive = getattr(cmd, 'is_interactive', False) or interactive
 
         self._commands[name] = handler
         self._descriptions[name] = description
@@ -56,6 +80,59 @@ class CommandRegistry:
         if aliases:
             for alias in aliases:
                 self._aliases[alias] = name
+
+    def get_interactive_defaults(self) -> set:
+        """Return the hardcoded interactive command set (for config reset)."""
+        return self._interactive.copy()
+
+    def apply_config_overrides(self):
+        """
+        Read `commands.interactive` from ConfigManager and override the
+        _interactive set. Format: comma-separated command names.
+
+        Usage:
+            jcapy config set commands.interactive "init,deploy,harvest,persona,tutorial"
+            jcapy config get commands.interactive
+        """
+        try:
+            from jcapy.config import CONFIG_MANAGER
+            override = CONFIG_MANAGER.get("commands.interactive")
+            if override and isinstance(override, str):
+                names = [n.strip() for n in override.split(",") if n.strip()]
+                # Validate: only allow known commands
+                valid = {n for n in names if n in self._commands}
+                invalid = set(names) - valid
+                if invalid:
+                    import sys
+                    print(f"[jcapy] Warning: unknown interactive commands ignored: {invalid}", file=sys.stderr)
+                self._interactive = valid
+        except Exception:
+            pass  # Config not available yet — use hardcoded defaults
+
+    def disable_command(self, name: str):
+        """Disable a command (hide from palette & block execution)."""
+        canonical = self._aliases.get(name, name)
+        if canonical in self._commands:
+            self._disabled.add(canonical)
+
+    def enable_command(self, name: str):
+        """Re-enable a previously disabled command."""
+        canonical = self._aliases.get(name, name)
+        self._disabled.discard(canonical)
+
+    def apply_disabled_from_config(self):
+        """Read `commands.disabled` from ConfigManager."""
+        try:
+            from jcapy.config import CONFIG_MANAGER
+            val = CONFIG_MANAGER.get("commands.disabled", "")
+            if val and isinstance(val, str):
+                names = [n.strip() for n in val.split(",") if n.strip()]
+                # Verify commands exist before disabling
+                self._disabled = {n for n in names if n in self._commands}
+            else:
+                self._disabled = set()
+        except Exception:
+            pass
 
     def get_handler(self, name: str) -> Optional[Callable]:
         """Get the handler for a command, resolving aliases."""
@@ -69,27 +146,46 @@ class CommandRegistry:
         return None
 
     def get_commands(self) -> Dict[str, str]:
-        """Return all registered commands and descriptions."""
-        return self._descriptions.copy()
+        """Return all registered commands and descriptions (excluding disabled)."""
+        return {k: v for k, v in self._descriptions.items() if k not in self._disabled}
 
     # ------------------------------------------------------------------
     # Shared Engine: Unified Dispatcher (CLI + TUI)
     # ------------------------------------------------------------------
 
-    def execute_string(self, command_str: str) -> CommandResult:
+    def execute_string(self, command_str: str, log_callback: Optional[Callable[[str], None]] = None) -> CommandResult:
         """
         Parse a raw command string and execute it via the registry.
-
-        This is the single entry-point for both the TUI Command Palette
-        and any programmatic callers.  It handles:
-          - Legacy commands that print() to stdout  → captured & wrapped
-          - Modern commands that return CommandResult → passed through
+        Supports integrated piping via '|'.
         """
+        # Save to history
+        HISTORY_MANAGER.add_command(command_str)
+
+        # Handle Piping
+        if "|" in command_str:
+            stages = [s.strip() for s in command_str.split("|")]
+            last_result = None
+            piped_data = None
+
+            for stage in stages:
+                res = self._execute_single_command(stage, log_callback, piped_data)
+                last_result = res
+                if res.status == ResultStatus.FAILURE:
+                    break
+                # Concatenate logs for next stage's piped_data
+                piped_data = "\n".join(res.logs)
+
+            return last_result
+
+        return self._execute_single_command(command_str, log_callback)
+
+    def _execute_single_command(self, command_str: str, log_callback: Optional[Callable[[str], None]] = None, piped_data: Optional[str] = None) -> CommandResult:
+        """Internal helper to execute a single (non-piped) command string."""
         parts = shlex.split(command_str)
         if not parts:
             return CommandResult(
                 status=ResultStatus.FAILURE,
-                message="Empty command.",
+                message="Empty command stage.",
                 error_code="EMPTY_COMMAND",
             )
 
@@ -104,49 +200,82 @@ class CommandRegistry:
                 error_code="UNKNOWN_COMMAND",
             )
 
-        # Resolve canonical name for interactive check (aliases → real name)
         canonical = self._aliases.get(base_cmd, base_cmd)
+        if canonical in self._disabled:
+             return CommandResult(
+                status=ResultStatus.FAILURE,
+                message=f"'{base_cmd}' is disabled.",
+                error_code="DISABLED_COMMAND",
+            )
+
         if canonical in self._interactive:
             return CommandResult(
                 status=ResultStatus.WARNING,
-                message=f"'{base_cmd}' requires interactive input. Run from terminal: jcapy {' '.join(parts)}",
+                message=f"'{base_cmd}' requires interactive input.",
                 error_code="INTERACTIVE_COMMAND",
             )
 
-        # Build a lightweight args namespace so legacy handlers work
-        class _Args:
-            def __init__(self, tokens: list):
-                self._tokens = tokens
-            def __getattr__(self, item):
-                return None
+        # Prepare arguments (Try parsing if setup_parser exists)
+        mock_args = MockArgs(cmd_args, piped_data=piped_data)
+        setup_parser_func = self._arguments.get(canonical)
+        if setup_parser_func:
+            import argparse
+            class SilentParser(argparse.ArgumentParser):
+                def error(self, message): raise ValueError(message)
+                def exit(self, status=0, message=None): raise ValueError(message or f"Exit {status}")
 
-        mock_args = _Args(cmd_args)
+            parser = SilentParser(prog=base_cmd, add_help=False)
+            try:
+                setup_parser_func(parser)
+                parsed_args = parser.parse_args(cmd_args)
+                setattr(parsed_args, 'piped_data', piped_data)
+                setattr(parsed_args, '_tokens', cmd_args)
+                mock_args = parsed_args
+            except Exception:
+                pass # Fallback to MockArgs
 
         start = time.time()
-        capture = io.StringIO()
+        capture = StreamingIO(callback=log_callback)
 
         try:
+            import inspect
+            sig = inspect.signature(handler)
+
             with contextlib.redirect_stdout(capture), \
                  contextlib.redirect_stderr(capture):
-                result = handler(mock_args)
+                # Check if it's a bound method or has 1+ parameters
+                if len(sig.parameters) > 0:
+                    result = handler(mock_args)
+                else:
+                    result = handler()
 
             elapsed = time.time() - start
-
-            # Modern path: handler already returned a CommandResult
+            captured = capture.getvalue()
             if isinstance(result, CommandResult):
                 if not result.duration:
                     result.duration = elapsed
-                # Append any captured prints to the result's logs
-                captured = capture.getvalue()
                 if captured:
                     result.logs.append(captured)
                 return result
 
-            # Legacy path: wrap captured output
+            # Legacy path: wrap captured output and result if it's a string
+            msg = f"'{base_cmd}' completed."
+            logs = [captured] if captured else []
+
+            if isinstance(result, str):
+                if not logs:
+                    logs = [result]
+                else:
+                    # If we had prints AND a return value, the return value is likely
+                    # the "intended" output for piping. Append it.
+                    if result.strip():
+                        logs.append(result)
+                    msg = "Completed with mixed output."
+
             return CommandResult(
                 status=ResultStatus.SUCCESS,
-                message=f"'{base_cmd}' completed.",
-                logs=[capture.getvalue()],
+                message=msg,
+                logs=logs,
                 duration=elapsed,
             )
 
@@ -163,13 +292,14 @@ class CommandRegistry:
 
     def configure_parsers(self, subparsers):
         """Configure argparse subparsers for all registered commands."""
-        for name, desc in self._commands.items():
+        for name, handler in self._commands.items():
             # Find aliases for this command
             cmd_aliases = [k for k, v in self._aliases.items() if v == name]
+            desc = self._descriptions.get(name, "")
 
             # Create subparser
             parser = subparsers.add_parser(name, help=desc, aliases=cmd_aliases)
-            parser.set_defaults(func=self._commands[name])
+            parser.set_defaults(func=handler)
 
             # Setup arguments if provided
             if name in self._arguments and self._arguments[name]:

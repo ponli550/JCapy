@@ -412,8 +412,23 @@ def harvest_framework(doc_path=None, auto_path=None, name=None, description=None
 
 
 def search_frameworks(query):
+    # --- PIPING SUPPORT ---
+    # Handle if query is an args object
+    piped_data = getattr(query, 'piped_data', None) if hasattr(query, 'piped_data') else None
+    search_term = query if isinstance(query, str) else " ".join(getattr(query, '_tokens', []))
+
+    if piped_data:
+        print(f"{BLUE}🔍 Filtering piped data for '{search_term}'...{RESET}")
+        lines = piped_data.splitlines()
+        matches = [line for line in lines if search_term.lower() in line.lower()]
+        for match in matches:
+            print(f"{GREEN}✅ Match: {WHITE}{match}{RESET}")
+        if not matches:
+            print(f"{YELLOW}No matches found in piped data.{RESET}")
+        return
+
     lib_path = get_active_library_path()
-    print(f"{BLUE}🔍 Searching Knowledge Base for '{query}'...{RESET}")
+    print(f"{BLUE}🔍 Searching Knowledge Base for '{search_term}'...{RESET}")
     print("-----------------------------------------------------")
 
     matches = []

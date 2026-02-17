@@ -93,27 +93,65 @@ class MCPServerItem(ListItem):
 
 class WidgetItem(ListItem):
     """An installed widget item."""
-    def __init__(self, name: str, description: str, enabled: bool = True):
+    def __init__(self, name: str, description: str, enabled: bool = True, column: str = ""):
         super().__init__()
         self.widget_name = name
         self.description = description
         self.enabled = enabled
+        self.column = column
         self.can_focus = True
 
     def compose(self) -> ComposeResult:
         status = "✓" if self.enabled else "✗"
-        yield Label(f"{status} {self.widget_name}", classes="item-label")
+        col_tag = f" [dim]({self.column[0].upper()})[/dim]" if self.enabled else ""
+        yield Label(f"{status} {self.widget_name}{col_tag}", classes="item-label")
 
     def on_click(self) -> None:
         """Handle click to toggle widget."""
-        self.enabled = not self.enabled
-        status = "✓" if self.enabled else "✗"
-        label = self.query_one(Label)
-        label.update(f"{status} {self.widget_name}")
-        action = "enabled" if self.enabled else "disabled"
-        self.app.notify(f"Widget '{self.widget_name}' {action}", severity="information")
+        if self.enabled:
+            # Simple toggle off
+            self.screen.remove_widget_from_layout(self.widget_name)
+        else:
+            # Prompt for column
+            self.screen.prompt_for_column(self.widget_name)
 
+class ColumnSelectModal(ModalScreen[str]):
+    """Modal to select dashboard column for a widget."""
+    CSS = """
+    ColumnSelectModal {
+        align: center middle;
+    }
+    #col-dialog {
+        width: 60;
+        height: auto;
+        border: thick $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+    #col-buttons {
+        layout: horizontal;
+        height: auto;
+        margin-top: 1;
+        content-align: center middle;
+    }
+    #col-buttons Button {
+        margin: 0 1;
+    }
+    """
+    def compose(self) -> ComposeResult:
+        with Vertical(id="col-dialog"):
+            yield Label("Select Dashboard Column", id="col-title")
+            with Horizontal(id="col-buttons"):
+                yield Button("Left", id="left_col")
+                yield Button("Center", id="center_col")
+                yield Button("Right", id="right_col")
+            yield Button("Cancel", variant="error", id="cancel")
 
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel":
+            self.dismiss(None)
+        else:
+            self.dismiss(event.button.id)
 class PluginItem(ListItem):
     """An installed plugin/skill item."""
     def __init__(self, name: str, version: str, path: str):
@@ -131,11 +169,46 @@ class PluginItem(ListItem):
         self.app.notify(f"Plugin: {self.plugin_name} v{self.version}\nPath: {self.path}\nPress 'u' to update, 'd' to delete", severity="information", timeout=5)
 
 
+class ThemeItem(ListItem):
+    """A theme selection item with live preview."""
+    def __init__(self, name: str, focus_colors: dict):
+        super().__init__()
+        self.theme_name = name
+        self.focus_colors = focus_colors
+
+    def compose(self) -> ComposeResult:
+        # Initial display
+        yield Label(f"🎨 {self.theme_name.capitalize()}", classes="item-label")
+
+    def on_focus(self) -> None:
+        """Apply preview style on focus."""
+        bg = self.focus_colors.get("accent", "#007acc")
+        self.styles.background = f"{bg} 20%"
+        self.styles.border = ("round", bg)
+        # We could also notify the app to temporarily preview, but specific widget preview is safer.
+        self.query_one(Label).styles.color = bg
+
+    def on_blur(self) -> None:
+        """Reset style on blur."""
+        self.styles.background = None
+        self.styles.border = None
+        self.query_one(Label).styles.color = None
+
+    def on_click(self) -> None:
+        """Apply the theme permanently."""
+        from jcapy.config import set_ux_preference
+        set_ux_preference("theme", self.theme_name)
+        self.app.notify(f"Theme '{self.theme_name}' applied!", severity="success")
+        # App will react via ConfigUpdated
+
+
 class ManagementScreen(Screen):
     """Management interface for MCP servers, widgets, plugins, and layouts."""
 
     BINDINGS = [
         Binding("q", "quit", "Quit", show=True),
+        Binding("d", "switch_to_dashboard", "Dashboard", show=True),
+        Binding("escape", "switch_to_dashboard", "Back", show=True),
         Binding("r", "refresh", "Refresh", show=True),
         Binding("enter", "activate_item", "Select", show=True),
         Binding("delete", "delete_item", "Delete", show=False),
@@ -150,43 +223,51 @@ class ManagementScreen(Screen):
 
     #main-grid {
         layout: grid;
-        grid-size: 4;
-        grid-columns: 1fr 1fr 1fr 1fr;
-        grid-gutter: 1;
+        grid-size: 3;
+        grid-columns: 1fr 1fr 1fr;
+        grid-gutter: 2;
         height: 1fr;
-        padding: 1;
+        padding: 2;
     }
 
     .column {
         height: 100%;
-        border: solid $accent 30%;
-        padding: 1;
+        padding: 1 2;
+        background: $surface 30%;
+        border: round $accent 20%;
+        margin: 1;
     }
 
     .column-header {
         text-style: bold;
         color: $accent;
-        background: $boost 10%;
+        background: $accent 8%;
         padding: 0 1;
         margin-bottom: 1;
+        border-bottom: double $accent;
     }
 
     .section-header {
         text-style: bold;
         color: $accent;
-        margin-bottom: 1;
+        margin-top: 1;
+        margin-bottom: 0;
+        padding-left: 1;
+        background: $boost 3%;
+        border-left: solid $accent;
     }
 
     .column ListView {
         height: 1fr;
         border: none;
-        margin-top: 1;
+        margin-top: 0;
+        background: transparent;
     }
 
     .column Button {
         width: 100%;
-        margin-top: 0;
-        margin-bottom: 1;
+        margin-top: 1;
+        margin-bottom: 0;
     }
 
     .item-label {
@@ -197,18 +278,24 @@ class ManagementScreen(Screen):
     ListItem {
         height: auto;
         padding: 0;
+        margin: 0 1;
+        transition: background 200ms, tint 200ms;
     }
 
     ListItem:hover {
-        background: $boost 20%;
+        background: $accent 10%;
+        tint: $accent 5%;
     }
 
     ListItem:focus {
         background: $accent 20%;
+        border: solid $accent;
+        tint: $accent 8%;
+        text-style: bold;
     }
 
     ListItem.-active {
-        background: $accent 30%;
+        background: $accent 35%;
     }
 
     .enabled {
@@ -219,12 +306,11 @@ class ManagementScreen(Screen):
         color: $error;
     }
 
-    Static#layout-info {
-        height: auto;
-        margin-top: 1;
+    #danger-zone {
+        margin-top: 2;
         padding: 1;
-        border: solid $accent 20%;
-        background: $boost 5%;
+        border: tall $error 20%;
+        background: $error 8%;
     }
     """
 
@@ -235,27 +321,31 @@ class ManagementScreen(Screen):
             # Column 1: MCP Servers
             with Vertical(classes="column", id="mcp-column"):
                 yield Label("🔌 [bold]MCP Servers[/bold]", classes="column-header")
-                yield Button("+ Add Server", variant="success", id="add-mcp-server")
                 yield ListView(id="mcp-list")
+                yield Button("+ Add Server", variant="success", id="add-mcp-server")
 
-            # Column 2: Widgets
-            with Vertical(classes="column", id="widget-column"):
-                yield Label("🧩 [bold]Widgets[/bold]", classes="column-header")
+            # Column 2: Widgets & Plugins (Merged for spatial focus)
+            with Vertical(classes="column", id="content-column"):
+                yield Label("🧩 [bold]Workspace Elements[/bold]", classes="column-header")
+                yield Label("Widgets", classes="section-header")
                 yield ListView(id="widget-list")
-
-            # Column 3: Plugins
-            with Vertical(classes="column", id="plugin-column"):
-                yield Label("📦 [bold]Plugins[/bold]", classes="column-header")
-                yield Button("+ Install", variant="success", id="install-plugin")
+                yield Label("Plugins", classes="section-header")
                 yield ListView(id="plugin-list")
+                yield Button("+ Install Plugin", variant="success", id="install-plugin")
 
-            # Column 4: Layouts
-            with Vertical(classes="column", id="layout-column"):
-                yield Label("🎨 [bold]Layouts[/bold]", classes="column-header")
-                yield Button("Save", variant="primary", id="save-layout")
-                yield Button("Load", variant="primary", id="load-layout")
-                yield Button("Reset", variant="warning", id="reset-layout")
-                yield Static(id="layout-info")
+            # Column 3: Themes & Systems
+            with Vertical(classes="column", id="system-column"):
+                yield Label("🎨 [bold]App Systems[/bold]", classes="column-header")
+                yield Label("Theme Gallery", classes="section-header")
+                yield ListView(id="theme-list")
+
+                with Vertical(id="danger-zone"):
+                    yield Label("Management", classes="section-header")
+                    yield Button("Save Layout", variant="primary", id="save-layout")
+                    yield Button("Reset Layout", variant="warning", id="reset-layout")
+                    yield Static(id="layout-info")
+
+                yield Button("⬅️ Back to Dashboard", variant="default", id="btn-back")
 
         yield Footer()
 
@@ -264,7 +354,17 @@ class ManagementScreen(Screen):
         self.load_mcp_servers()
         self.load_widgets()
         self.load_plugins()
+        self.load_themes()
         self.load_layout_info()
+
+    def load_themes(self) -> None:
+        """Load available themes."""
+        theme_list = self.query_one("#theme-list", ListView)
+        theme_list.clear()
+
+        from jcapy.ui.theme import THEMES
+        for name, colors in THEMES.items():
+            theme_list.append(ThemeItem(name, colors))
 
     def load_mcp_servers(self) -> None:
         """Load MCP server configurations."""
@@ -282,18 +382,93 @@ class ManagementScreen(Screen):
             mcp_list.append(server)
 
     def load_widgets(self) -> None:
-        """Load installed widgets."""
+        """Load installed widgets with categorization."""
         widget_list = self.query_one("#widget-list", ListView)
-        widget_list.clear()  # Prevent duplicates on refresh
+        widget_list.clear()
 
         from jcapy.ui.widgets.dashboard_widgets import WidgetRegistry
+        from jcapy.config import get_dashboard_layout
+        layout = get_dashboard_layout()
 
+        # Build reverse map for easy lookup
+        active_widgets = {}
+        for col_name, widgets in layout.items():
+            for w in widgets:
+                active_widgets[w] = col_name
+
+        # Group widgets by category
+        categories = {}
         for name, metadata in WidgetRegistry.get_all_metadata().items():
-            widget_list.append(WidgetItem(
-                name=name,
-                description=metadata.get("description", "No description"),
-                enabled=True  # TODO: Track enabled state
-            ))
+            cat = metadata.get("category", "Misc")
+            if cat not in categories:
+                categories[cat] = []
+            categories[cat].append((name, metadata))
+
+        # Render grouped with headers
+        for cat in sorted(categories.keys()):
+            # Category Header (Non-selectable item)
+            header = ListItem(Label(f"[dim]── {cat} ──[/dim]", classes="item-label"), disabled=True)
+            widget_list.append(header)
+
+            for name, metadata in sorted(categories[cat]):
+                is_active = name in active_widgets
+                col = active_widgets.get(name, "")
+                widget_list.append(WidgetItem(
+                    name=name,
+                    description=metadata.get("description", "No description"),
+                    enabled=is_active,
+                    column=col
+                ))
+
+    def prompt_for_column(self, widget_name: str) -> None:
+        """Show modal to select column."""
+        def handle_choice(choice):
+            if choice:
+                self.add_widget_to_layout(widget_name, choice)
+
+        self.app.push_screen(ColumnSelectModal(), handle_choice)
+
+    def add_widget_to_layout(self, widget_name: str, column: str) -> None:
+        """Add a widget to a specific column in the config."""
+        from jcapy.config import get_dashboard_layout, set_dashboard_layout
+        layout = get_dashboard_layout()
+
+        # Remove from any existing first
+        for col in layout:
+            if widget_name in layout[col]:
+                layout[col].remove(widget_name)
+
+        # Add to selected
+        if column in layout:
+            layout[column].append(widget_name)
+
+        set_dashboard_layout(layout)
+        self.app.notify(f"Added {widget_name} to {column}")
+
+        # FIX: Defer refresh to avoid "suicidal" event crash
+        # Rebuilding the list in the middle of a click event from a soon-to-be-deleted
+        # ListItem causes ListView to lose track of its nodes.
+        self.call_after_refresh(self.load_widgets)
+        self.call_after_refresh(self.load_layout_info)
+
+    def remove_widget_from_layout(self, widget_name: str) -> None:
+        """Remove widget from config."""
+        from jcapy.config import get_dashboard_layout, set_dashboard_layout
+        layout = get_dashboard_layout()
+
+        removed = False
+        for col in layout:
+            if widget_name in layout[col]:
+                layout[col].remove(widget_name)
+                removed = True
+
+        if removed:
+            set_dashboard_layout(layout)
+            self.app.notify(f"Removed {widget_name} from dashboard")
+
+            # FIX: Defer refresh to avoid "suicidal" event crash
+            self.call_after_refresh(self.load_widgets)
+            self.call_after_refresh(self.load_layout_info)
 
     def load_plugins(self) -> None:
         """Load installed plugins."""
@@ -370,9 +545,16 @@ Left: {len(layout.get('left_col', []))} • Center: {len(layout.get('center_col'
         elif isinstance(focused, PluginItem):
             self.app.notify(f"Edit plugin '{focused.plugin_name}' (Not implemented)", severity="information")
 
+    def action_switch_to_dashboard(self) -> None:
+        """Switch back to the dashboard."""
+        self.app.switch_screen("dashboard")
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
         button_id = event.button.id
+
+        if button_id == "btn-back":
+            self.action_switch_to_dashboard()
 
         if button_id == "add-mcp-server":
             def handle_server_data(server_data):

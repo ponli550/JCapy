@@ -1,5 +1,7 @@
 from textual.screen import ModalScreen
-from textual.widgets import Input, OptionList
+from textual.widgets import OptionList
+from jcapy.ui.widgets.kinetic_input import KineticInput
+import difflib
 from textual.containers import Vertical
 from textual.app import ComposeResult
 from jcapy.core.plugins import get_registry
@@ -33,13 +35,20 @@ class CommandPalette(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="palette-container"):
-            yield Input(placeholder="Type a command...", id="palette-input")
+            yield KineticInput(placeholder="Type a command...", id="palette-input")
             yield OptionList(*COMMANDS, id="palette-list")
 
-    def on_input_changed(self, event: Input.Changed) -> None:
-        """Filter the list based on input."""
+    def on_input_changed(self, event: KineticInput.Changed) -> None:
+        """Filter the list based on input using fuzzy matching."""
         query = event.value.lower()
-        filtered = [cmd for cmd in COMMANDS if query in cmd.lower()]
+        if not query:
+            filtered = COMMANDS
+        else:
+            # Fuzzy match descriptions as well
+            filtered = [
+                cmd for cmd in COMMANDS
+                if query in cmd.lower() or difflib.get_close_matches(query, [cmd.split(":")[0].strip()], n=1, cutoff=0.3)
+            ]
 
         opt_list = self.query_one(OptionList)
         opt_list.clear_options()

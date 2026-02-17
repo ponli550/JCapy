@@ -20,6 +20,26 @@ class MemorizeCommand(CommandBase):
     def execute(self, args):
         try:
             bank = get_memory_bank()
+
+            # --- PIPING SUPPORT ---
+            piped_data = getattr(args, 'piped_data', None)
+
+            if piped_data and not args.path:
+                console.print(f"[bold cyan]🧠 Memorizing Piped Data...[/bold cyan]")
+                import tempfile
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as tf:
+                    tf.write(piped_data)
+                    tmp_path = tf.name
+
+                try:
+                    stats = bank.memorize([tmp_path], clear_first=args.force)
+                    console.print(f"\n[bold green]✨ Piped Data Ingested:[/bold green]")
+                    print(f"  • Added: {stats['added']}")
+                finally:
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+                return
+
             paths = [args.path] if args.path else [get_active_library_path()]
 
             console.print(f"[bold cyan]🧠 Memorizing Knowledge...[/bold cyan]")

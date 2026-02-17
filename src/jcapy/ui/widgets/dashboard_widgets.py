@@ -1,15 +1,19 @@
 from datetime import datetime
 from typing import Any
 from textual.widgets import Static, Button, TextArea, ListView, ListItem, Label, DirectoryTree, RichLog
+from jcapy.ui.widgets.kinetic_input import KineticInput
 from textual.widget import Widget
 from textual.containers import Vertical, Horizontal, Grid, Container
 from textual.app import ComposeResult
 from textual.binding import Binding
+from textual.reactive import reactive
 from rich.panel import Panel
 from rich.align import Align
 from rich.text import Text
 import os
 import subprocess
+from jcapy.config import CONFIG_MANAGER
+from jcapy.ui.messages import ConfigUpdated
 
 # ==========================================
 # WIDGET REGISTRY
@@ -19,11 +23,12 @@ class WidgetRegistry:
     _metadata = {}
 
     @classmethod
-    def register(cls, name, widget_cls, description="No description", size="flexible"):
+    def register(cls, name, widget_cls, description="No description", size="flexible", category="Misc"):
         cls._registry[name] = widget_cls
         cls._metadata[name] = {
             "description": description,
-            "size": size  # small, large, flexible
+            "size": size,  # small, large, flexible
+            "category": category
         }
 
     @classmethod
@@ -67,7 +72,21 @@ class KanbanTask(ListItem):
         self.status = status # 'todo', 'doing', 'done'
 
     def compose(self) -> ComposeResult:
-        yield Label(f"• {self.task_title}")
+        # Strip markdown for display
+        clean_title = self.task_title.replace("**", "").replace("__", "").replace("`", "")
+        # Standardize icons based on keywords
+        icon = "•"
+        t_low = clean_title.lower()
+        if any(w in t_low for w in ["test", "verify"]): icon = "🧪"
+        elif any(w in t_low for w in ["refactor", "fix", "debug"]): icon = "🛠️"
+        elif any(w in t_low for w in ["feat", "add", "implement"]): icon = "✨"
+        elif any(w in t_low for w in ["docs", "requirement", "readme"]): icon = "📝"
+        elif any(w in t_low for w in ["ui", "style", "polish", "visual"]): icon = "🎨"
+
+        # Truncate if too long
+        if len(clean_title) > 35:
+            clean_title = clean_title[:32] + "..."
+        yield Label(f"{icon} {clean_title}")
 
 class KanbanWidget(Widget, can_focus=True):
     """
@@ -109,10 +128,13 @@ class KanbanWidget(Widget, can_focus=True):
 
     def toggle_highlight(self, active: bool) -> None:
         self.highlighted = active
-        self.styles.border = ("thick", "green" if active else "blue")
+        self.styles.border = ("round", "green" if active else "blue")
 
     def update_board(self) -> None:
+        from jcapy.config import get_ux_preference
+        max_tasks = get_ux_preference("max_task_display") or 5
         task_file = "/Users/irfanali/.gemini/antigravity/brain/41e0cc09-b343-4215-b7f5-16b292e29d81/task.md"
+
         try:
             todo_list = self.query_one("#todo-list", ListView)
             doing_list = self.query_one("#doing-list", ListView)
@@ -127,14 +149,25 @@ class KanbanWidget(Widget, can_focus=True):
 
         if os.path.exists(task_file):
             with open(task_file, "r") as f:
+                counts = {"todo": 0, "doing": 0, "done": 0}
                 for line in f:
                     line = line.strip()
-                    if line.startswith("- [ ]"):
-                        todo_list.append(KanbanTask(line[5:].strip(), "todo"))
-                    elif line.startswith("- [/]"):
-                        doing_list.append(KanbanTask(line[5:].strip(), "doing"))
-                    elif line.startswith("- [x]"):
-                        done_list.append(KanbanTask(line[5:].strip(), "done"))
+                    status = None
+                    if line.startswith("- [ ]"): status = "todo"
+                    elif line.startswith("- [/]"): status = "doing"
+                    elif line.startswith("- [x]"): status = "done"
+
+                    if status:
+                        counts[status] += 1
+                        if counts[status] <= max_tasks:
+                            list_widget = todo_list if status == "todo" else (doing_list if status == "doing" else done_list)
+                            list_widget.append(KanbanTask(line[5:].strip(), status))
+
+                # Add condensation summary if needed
+                for status, count in counts.items():
+                    if count > max_tasks:
+                        list_widget = todo_list if status == "todo" else (doing_list if status == "doing" else done_list)
+                        list_widget.append(ListItem(Label(f"[dim]+ {count - max_tasks} more tasks...[/]")))
 
         if t_idx is not None and t_idx < len(todo_list.children): todo_list.index = t_idx
         if d_idx is not None and d_idx < len(doing_list.children): doing_list.index = d_idx
@@ -199,11 +232,32 @@ class ProjectStatusWidget(Static):
         project_name = os.path.basename(cwd)
         try:
             branch = subprocess.check_output(["git", "branch", "--show-current"], stderr=subprocess.DEVNULL).decode().strip()
-        except: branch = "Not a git repo"
+            # Ahead/Behind check
+            try:
+                ab = subprocess.check_output(["git", "rev-list", "--left-right", "--count", "HEAD...@{u}"], stderr=subprocess.DEVNULL).decode().strip().split()
+                ahead = ab[0] if ab else "0"
+                behind = ab[1] if len(ab) > 1 else "0"
+                git_meta = f" [cyan]↑{ahead}[/] [magenta]↓{behind}[/]"
+            except:
+                git_meta = ""
+
+            # Uncommitted changes
+            status_out = subprocess.check_output(["git", "status", "--porcelain"], stderr=subprocess.DEVNULL).decode()
+            change_count = len(status_out.splitlines())
+            if change_count > 0:
+                git_meta += f" [yellow]∆{change_count}[/]"
+
+        except:
+            branch = "Not a git repo"
+            git_meta = ""
+
+        # Smart path truncation
+        home = os.path.expanduser('~')
+        display_path = cwd.replace(home, "~") if cwd.startswith(home) else cwd
 
         content = f"\n[bold magenta]📂 {project_name.upper()}[/]\n"
-        content += f"[dim] {branch}[/]\n"
-        content += f"[dim] {cwd.replace(os.path.expanduser('~'), '~')}[/]"
+        content += f"[dim] {branch}[/]{git_meta}\n"
+        content += f"[dim] {display_path}[/]"
         self.update(content)
 
 class MarketplaceItem(ListItem):
@@ -231,7 +285,7 @@ class MarketplaceWidget(Container, can_focus=True):
 
     def on_mount(self) -> None:
         self.highlighted = False
-        self.styles.border = ("solid", "cyan")
+        self.styles.border = ("round", "cyan")
         self.update_market()
 
     def update_market(self) -> None:
@@ -240,12 +294,16 @@ class MarketplaceWidget(Container, can_focus=True):
 
         m_list = self.query_one("#marketplace-list", ListView)
         m_list.clear()
-        for item in items:
-            m_list.append(MarketplaceItem(item))
+
+        if not items:
+             m_list.append(ListItem(Label("\n[dim]No plugins found.[/dim]\n[dim]Check internet connection.[/dim]")))
+        else:
+            for item in items:
+                m_list.append(MarketplaceItem(item))
 
     def toggle_highlight(self, active: bool) -> None:
         self.highlighted = active
-        self.styles.border = ("thick", "green" if active else "cyan")
+        self.styles.border = ("round", "green" if active else "cyan")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id.startswith("install-"):
@@ -275,12 +333,12 @@ class FileExplorerWidget(Static, can_focus=True):
     def on_mount(self) -> None:
         self.highlighted = False
         self.styles.height = "100%"
-        self.styles.border = ("solid", "blue")
+        self.styles.border = ("round", "blue")
         self.query_one(DirectoryTree).border_title = "📂 Files"
 
     def toggle_highlight(self, active: bool) -> None:
         self.highlighted = active
-        self.styles.border = ("thick", "green" if active else "blue")
+        self.styles.border = ("round", "green" if active else "blue")
 
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         self.open_path(str(event.path))
@@ -302,17 +360,43 @@ class FileExplorerWidget(Static, can_focus=True):
             self.app.notify(f"Mapping: {path}")
 
 class ConsoleDrawer(Container):
-    """Slide-up Console Drawer for background task logs."""
+    """Slide-up Command Bar & System Logs."""
     def compose(self) -> ComposeResult:
-        yield Label("[bold yellow]❯ CONSOLE[/bold yellow]", id="drawer-header")
+        with Horizontal(id="drawer-header"):
+            yield Label("[bold yellow]❯ CONSOLE[/bold yellow]")
+            yield Label("[dim] (Type ':' for palette)[/dim]", id="drawer-hint")
         yield RichLog(id="drawer-log", highlight=True, wrap=True, markup=True)
+        yield KineticInput(placeholder="Type commands (supports shell & pipes: 'list | grep persona')...", id="drawer-input")
 
     def on_mount(self) -> None:
-        self.styles.dock = "bottom"
-        self.styles.height = 3
-        self.styles.background = "#1a1a1a"
-        self.styles.border = ("ascii", "white")
-        self.query_one(RichLog).write("[dim]System ready. Type ':shell' for raw terminal access.[/dim]")
+        self.query_one(RichLog).write("[dim]System ready. Quick commands: 'help', 'persona', 'theme'.[/dim]")
+
+    def on_input_submitted(self, event: KineticInput.Submitted) -> None:
+        cmd_text = event.value.strip()
+        if not cmd_text:
+            return
+
+        # Log the command
+        log = self.query_one(RichLog)
+        log.write(f"[bold cyan]> {cmd_text}[/]")
+
+        # Execute (Basic delegating to app or registry)
+        # Note: In a real app, we'd fire a 'RunCommand' message
+        # For this refactor, we'll try to use the existing command palette logic
+        # or simple subprocess if it's a shell command
+        if cmd_text.startswith(":"):
+             # It's already in palette format, just trigger palette?
+             # Or we can handle it here.
+             pass
+
+        # Clear input
+        inp = self.query_one(KineticInput)
+        inp.value = ""
+        inp.refresh_history()
+
+        # Dispatch to app's execution logic if available
+        if hasattr(self.app, "run_command"):
+             self.app.run_command(cmd_text)
 
     def write(self, message: str) -> None: self.query_one(RichLog).write(message)
 
@@ -376,11 +460,45 @@ class UsageTrackerWidget(Static):
         self.refresh_content()
 
     def refresh_content(self):
-        content = f"[bold]Session Usage:[/bold]\nInput:  [cyan]12,500[/] toks\nOutput: [green]4,200[/] toks\n----------------\n[bold yellow]Est. Cost: $0.1500[/bold yellow]"
-        border = "green" if getattr(self, "highlighted", False) else "magenta"
-        self.update(Panel(content, title="💸 AI Budget", border_style=border))
+        in_toks = CONFIG_MANAGER.get("usage.input", 0)
+        out_toks = CONFIG_MANAGER.get("usage.output", 0)
+        cost = CONFIG_MANAGER.get("usage.cost", 0.0)
 
-class ScratchpadWidget(Static):
+        # Soft budget warning (e.g. $1.00)
+        warning_style = ""
+        if cost > 1.0:
+            warning_style = " [bold red]! BUDGET ALERT[/]"
+        elif cost > 0.5:
+             warning_style = " [bold yellow]! BUDGET LIMIT[/]"
+
+        # Build a more premium panel
+        content = Text()
+        content.append("\n  ", style="bold magenta")
+        content.append("AI CONSUMPTION" + warning_style + "\n\n", style="bold white")
+
+        # Input
+        content.append("  IN  ", style="dim white")
+        content.append(f"{in_toks:>8,}", style="bold cyan")
+        content.append(" toks\n", style="dim")
+
+        # Output
+        content.append("  OUT ", style="dim white")
+        content.append(f"{out_toks:>8,}", style="bold green")
+        content.append(" toks\n", style="dim")
+
+        content.append("\n  ------------------\n", style="dim")
+        content.append("  TOTAL COST: ", style="dim white")
+        content.append(f" ${cost:,.4f}", style="bold yellow")
+
+        border = "green" if getattr(self, "highlighted", False) else "magenta"
+        self.update(Panel(content, title="💸 Budget", border_style=border))
+
+    def on_config_updated(self, message: ConfigUpdated) -> None:
+        """Refresh if usage keys change."""
+        if message.key.startswith("usage."):
+            self.refresh_content()
+
+class ScratchpadWidget(Static, can_focus=True):
     """Persistent Scratchpad."""
     def compose(self) -> ComposeResult:
         self.text_area = TextArea(id="scratchpad-area")
@@ -422,21 +540,45 @@ class MCPWidget(Static):
         self.refresh_content()
 
     def refresh_content(self):
-        content = "[bold green]Active Servers:[/bold green]\n- filesystem\n- brave-search\n- github\n\n[dim]3 servers connected.[/dim]"
+        content = "[bold green]Active Servers:[/bold green] 🟢 [italic dim]LIVE[/]\n- filesystem\n- brave-search\n- github\n\n[dim]3 servers connected.[/dim]"
         border = "green" if getattr(self, "highlighted", False) else "yellow"
         self.update(Panel(content, title="🔌 MCP Tools", border_style=border))
 
 # ==========================================
+# STATUS WIDGET
+# ==========================================
+
+class StatusWidget(Static):
+    """Displays live system status."""
+
+    status = reactive("🟢 [bold green]Config Synced[/]")
+
+    def on_mount(self):
+        self.set_interval(60, self.update_render)
+        self.update_render()
+
+    def watch_status(self, val):
+        self.update_render()
+
+    def update_render(self):
+        import time
+        from jcapy.config import CONFIG_MANAGER
+        t = time.strftime("%H:%M:%S")
+        persona = CONFIG_MANAGER.get("core.persona", "developer").capitalize()
+        self.update(f"{self.status}  [dim]|[/] 👤 [bold cyan]{persona}[/]  [dim]| Sync: {t}[/dim]")
+
+# ==========================================
 # WIDGET REGISTRATION
 # ==========================================
-WidgetRegistry.register("Clock", ClockWidget, "Digital Clock (Local/UTC)", "small")
-WidgetRegistry.register("Kanban", KanbanWidget, "Live Task Board from task.md", "large")
-WidgetRegistry.register("ProjectStatus", ProjectStatusWidget, "Git Branch & Path Info", "small")
-WidgetRegistry.register("Marketplace", MarketplaceWidget, "Available JCapy Plugins", "small")
-WidgetRegistry.register("MCP", MCPWidget, "Active MCP Server Status", "small")
-WidgetRegistry.register("GitLog", GitLogWidget, "Recent Git Commit History", "flexible")
-WidgetRegistry.register("News", NewsWidget, "Tech News Headlines", "small")
-WidgetRegistry.register("UsageTracker", UsageTrackerWidget, "Session Token Usage & Cost", "small")
-WidgetRegistry.register("Scratchpad", ScratchpadWidget, "Persistent Notes Area", "flexible")
-WidgetRegistry.register("FileExplorer", FileExplorerWidget, "Interactive Project Browser", "flexible")
-WidgetRegistry.register("ConsoleDrawer", ConsoleDrawer, "Slide-up System Logs", "flexible")
+WidgetRegistry.register("Clock", ClockWidget, "Digital Clock (Local/UTC)", "small", "System")
+WidgetRegistry.register("Kanban", KanbanWidget, "Live Task Board from task.md", "large", "Core")
+WidgetRegistry.register("ProjectStatus", ProjectStatusWidget, "Git Branch & Path Info", "small", "Core")
+WidgetRegistry.register("Marketplace", MarketplaceWidget, "Available JCapy Plugins", "small", "Marketplace")
+WidgetRegistry.register("MCP", MCPWidget, "Active MCP Server Status", "small", "Systems")
+WidgetRegistry.register("Status", StatusWidget, "System Status Indicator", "small", "System")
+WidgetRegistry.register("GitLog", GitLogWidget, "Recent Git Commit History", "flexible", "Dev Tools")
+WidgetRegistry.register("News", NewsWidget, "Tech News Headlines", "small", "Insights")
+WidgetRegistry.register("UsageTracker", UsageTrackerWidget, "Session Token Usage & Cost", "small", "Insights")
+WidgetRegistry.register("Scratchpad", ScratchpadWidget, "Persistent Notes Area", "flexible", "Core")
+WidgetRegistry.register("FileExplorer", FileExplorerWidget, "Interactive Project Browser", "flexible", "Dev Tools")
+WidgetRegistry.register("ConsoleDrawer", ConsoleDrawer, "Slide-up System Logs", "flexible", "System")

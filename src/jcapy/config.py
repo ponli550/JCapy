@@ -3,12 +3,14 @@ import os
 import json
 import shutil
 import sys
+from jcapy.core.config_manager import ConfigManager
 
 # ==========================================
 # CONFIGURATION & CONSTANTS
 # ==========================================
 HOME = os.path.expanduser("~")
 CONFIG_PATH = os.path.join(HOME, ".jcapy_config.json")
+CONFIG_MANAGER = ConfigManager(CONFIG_PATH)
 # Adapting BASE_DIR for the package structure, assuming resources might be near this file or handled via package data
 # For now, we will assume the package root is up one level from 'config.py' (i.e. src/jcapy/)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -48,25 +50,10 @@ LOGO_PATH = os.path.join(BASE_DIR, "logo.md")
 # CONFIGURATION MANAGEMENT
 # ==========================================
 def load_config():
-    if os.path.exists(CONFIG_PATH):
-        try:
-            with open(CONFIG_PATH, 'r') as f:
-                return json.load(f)
-        except:
-             return {}
-    return {}
+    return CONFIG_MANAGER.get_all()
 
 def save_config(data):
-    # Secure Save: Ensure file is read/write by owner only (0o600)
-    try:
-        # Prepare file descriptor with atomic exclusive creation if possible, or truncation
-        fd = os.open(CONFIG_PATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, 'w') as f:
-            json.dump(data, f, indent=2)
-        # Force permissions for existing files
-        os.chmod(CONFIG_PATH, 0o600)
-    except Exception as e:
-        print(f"Error saving config: {e}")
+    CONFIG_MANAGER.set_all(data)
 
 def get_api_key(provider):
     """Retrieves API Key with priority: 1. Environment Var, 2. Config File"""
@@ -85,8 +72,8 @@ def get_api_key(provider):
         return os.environ.get(key_name)
 
     # 2. Check Config
-    config = load_config()
-    return config.get('env', {}).get(key_name)
+    # 2. Check Config
+    return CONFIG_MANAGER.get(f"env.{key_name}")
 
 def set_api_key(provider, key):
     """Securely saves an API key to the config file."""
@@ -101,12 +88,7 @@ def set_api_key(provider, key):
     if not key_name:
         return False, f"Unsupported provider: {provider}"
 
-    config = load_config()
-    if 'env' not in config:
-        config['env'] = {}
-
-    config['env'][key_name] = key
-    save_config(config)
+    CONFIG_MANAGER.set(f"env.{key_name}", key)
     return True, f"Successfully saved {provider.capitalize()} API key."
 
 def get_active_library_path():
@@ -145,27 +127,25 @@ UX_DEFAULTS = {
     "reduced_motion": False,
     "accessible": False,
     "audio_mode": "muted",  # Options: muted, beeps, voice, custom
+    "max_task_display": 5,  # Max tasks per column in Kanban before truncation/condensation
 }
 
 def get_ux_preference(key: str):
     """Get a UX preference value."""
-    config = load_config()
-    ux = config.get("ux", {})
-    return ux.get(key, UX_DEFAULTS.get(key))
+    # Use nested get: ux.key
+    val = CONFIG_MANAGER.get(f"ux.{key}")
+    if val is None:
+        return UX_DEFAULTS.get(key)
+    return val
 
 def set_ux_preference(key: str, value):
     """Set a UX preference value."""
-    config = load_config()
-    if "ux" not in config:
-        config["ux"] = {}
-    config["ux"][key] = value
-    save_config(config)
+    CONFIG_MANAGER.set(f"ux.{key}", value)
     return True
 
 def get_all_ux_preferences() -> dict:
     """Get all UX preferences with defaults."""
-    config = load_config()
-    ux = config.get("ux", {})
+    ux = CONFIG_MANAGER.get("ux", {})
     result = UX_DEFAULTS.copy()
     result.update(ux)
     return result
@@ -181,12 +161,9 @@ DEFAULT_LAYOUT = {
 
 def get_dashboard_layout():
     """Get dashboard widget layout."""
-    config = load_config()
-    return config.get("dashboard_layout", DEFAULT_LAYOUT)
+    return CONFIG_MANAGER.get("dashboard_layout", DEFAULT_LAYOUT)
 
 def set_dashboard_layout(layout):
     """Set dashboard widget layout."""
-    config = load_config()
-    config["dashboard_layout"] = layout
-    save_config(config)
+    CONFIG_MANAGER.set("dashboard_layout", layout)
     return True

@@ -4,6 +4,37 @@ import urllib.request
 import urllib.error
 from jcapy.config import get_api_key
 
+def _track_usage(provider: str, prompt: str, response: str):
+    """Helper to track token usage and cost."""
+    try:
+        from jcapy.config import CONFIG_MANAGER
+
+        # Estimate tokens (standard approximation: chars / 4)
+        in_tokens = len(prompt) // 4
+        out_tokens = len(response) // 4
+
+        # Pricing Registry ($ per 1M tokens)
+        pricing = {
+            "gemini": {"in": 0.075, "out": 0.30},
+            "openai": {"in": 5.00, "out": 15.00},
+            "deepseek": {"in": 0.14, "out": 0.28}
+        }
+
+        rate = pricing.get(provider.lower(), {"in": 0, "out": 0})
+        cost = (in_tokens * rate["in"] + out_tokens * rate["out"]) / 1_000_000
+
+        # Update Config (Accumulated)
+        current_in = CONFIG_MANAGER.get("usage.input", 0)
+        current_out = CONFIG_MANAGER.get("usage.output", 0)
+        current_cost = CONFIG_MANAGER.get("usage.cost", 0.0)
+
+        CONFIG_MANAGER.set("usage.input", current_in + in_tokens)
+        CONFIG_MANAGER.set("usage.output", current_out + out_tokens)
+        CONFIG_MANAGER.set("usage.cost", round(current_cost + cost, 6))
+    except Exception:
+        # Don't let usage tracking break the AI call
+        pass
+
 def call_ai_agent(prompt, provider='gemini'):
     """Generic helper to call LLM providers directly via urllib."""
     provider = provider.lower()
@@ -23,10 +54,12 @@ def call_ai_agent(prompt, provider='gemini'):
         req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
 
         try:
-            with urllib.request.urlopen(req, timeout=30) as response:
-                result = json.loads(response.read().decode('utf-8'))
+            with urllib.request.urlopen(req, timeout=30) as response_obj:
+                result = json.loads(response_obj.read().decode('utf-8'))
                 if 'candidates' in result:
-                    return result['candidates'][0]['content']['parts'][0]['text'], None
+                    text = result['candidates'][0]['content']['parts'][0]['text']
+                    _track_usage('gemini', prompt, text)
+                    return text, None
                 return None, "Gemini Error: Unexpected response format"
         except urllib.error.HTTPError as e:
             err_msg = e.read().decode('utf-8')
@@ -54,10 +87,12 @@ def call_ai_agent(prompt, provider='gemini'):
         req = urllib.request.Request(url, data=data, headers=headers)
 
         try:
-            with urllib.request.urlopen(req, timeout=30) as response:
-                result = json.loads(response.read().decode('utf-8'))
+            with urllib.request.urlopen(req, timeout=30) as response_obj:
+                result = json.loads(response_obj.read().decode('utf-8'))
                 if 'choices' in result:
-                    return result['choices'][0]['message']['content'], None
+                    text = result['choices'][0]['message']['content']
+                    _track_usage(provider, prompt, text)
+                    return text, None
                 return None, f"{provider.capitalize()} Error: Unexpected response format"
         except urllib.error.HTTPError as e:
             err_msg = e.read().decode('utf-8')

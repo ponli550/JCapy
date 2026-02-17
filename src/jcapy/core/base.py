@@ -47,6 +47,7 @@ class CommandBase(ABC):
     name: str = ""
     description: str = ""
     aliases: List[str] = []
+    is_interactive: bool = False  # Set to True if command requires user input (suspend TUI)
 
     def setup_parser(self, parser):
         """Optional: Configure argparse parser."""

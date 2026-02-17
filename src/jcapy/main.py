@@ -80,12 +80,10 @@ def main():
 
             # If completely new user (no config exists)
             if not os.path.exists(CONFIG_PATH):
-                # 1. Animations: Matrix Rain + Crystallizing Logo
+                # 1. First-time Setup Welcome
                 try:
-                    from jcapy.ui.animations import cinematic_intro, should_animate, typewriter_print
+                    from jcapy.ui.animations import should_animate, typewriter_print
                     if should_animate():
-                        cinematic_intro()
-                        print("\n")
                         typewriter_print(f"{CYAN}Welcome to JCapy.{RESET}", speed=0.08)
                         time.sleep(0.5)
                         typewriter_print(f"{GREY}Your personal AI Architect.{RESET}", speed=0.05)
@@ -102,13 +100,9 @@ def main():
                 tutorial.run_interactive()
 
             else:
-                 # Standard Intro for returning users
-                 try:
-                    from jcapy.ui.animations import cinematic_intro, should_animate
-                    if should_animate():
-                        cinematic_intro()
-                 except ImportError:
-                    pass
+                 # Standard Flow for returning users:
+                 # The TUI JCapyApp now handles the cinematic startup internally.
+                 pass
 
             from jcapy.commands.brain import ensure_operator_identity
             ensure_operator_identity()
