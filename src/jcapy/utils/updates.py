@@ -32,7 +32,7 @@ def check_for_app_updates():
         import urllib.request
         import json
 
-        url = "https://api.github.com/repos/ponli550/jcapyCLI/tags"
+        url = "https://api.github.com/repos/ponli550/JCapy/tags"
         req = urllib.request.Request(url, headers={'User-Agent': 'jcapyCLI'})
 
         with urllib.request.urlopen(req, timeout=3) as response:
