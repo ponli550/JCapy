@@ -11,6 +11,8 @@ from jcapy.config import (
     get_current_persona_name, DEFAULT_LIBRARY_PATH, JCAPY_HOME
 )
 from jcapy.ui.menu import interactive_menu
+from jcapy.models.frameworks import ResultStatus as FrameworkStatus
+from jcapy.services.frameworks.engine import FrameworkEngine
 
 # ANSI Colors for non-Rich fallbacks
 CYAN = '\033[1;36m'
@@ -106,6 +108,11 @@ def list_frameworks():
 
 def harvest_framework(doc_path=None, auto_path=None, name=None, description=None, grade=None, confirm=False, force=False, tui_data=None):
     lib_path = get_active_library_path()
+    engine = FrameworkEngine()
+    domain = None
+    pros_input = None
+    cons_input = None
+    code_snippet = None
     try:
         from rich.console import Console
         from rich.prompt import Prompt
@@ -151,6 +158,10 @@ def harvest_framework(doc_path=None, auto_path=None, name=None, description=None
          name = tui_data.get("name")
          description = tui_data.get("description")
          grade = tui_data.get("grade")
+         domain = tui_data.get("domain")
+         pros_input = tui_data.get("pros")
+         cons_input = tui_data.get("cons")
+         code_snippet = tui_data.get("snippet")
          console.print(f"[green]✔ Interactive inputs received. Proceeding...[/green]")
 
     console.print(f"[bold magenta]🌾 jcapy Harvest Protocol ({get_current_persona_name()})[/bold magenta]")
@@ -165,52 +176,19 @@ def harvest_framework(doc_path=None, auto_path=None, name=None, description=None
     # Smart Harvest: Pre-fill from doc OR Draft Overwrite
     defaults = {}
     draft_mode = False
-    existing_framework_path = None
 
     if doc_path and os.path.exists(doc_path):
-        # ... (Draft logic same as before) ...
-        # Check if this is a jcapy Draft (Metadata check)
-        draft_title = get_framework_metadata(doc_path)
+        # 0. Check for Overwrite/Draft via Engine
+        result = engine.harvest(doc_path, tui_data=tui_data)
 
-        if draft_title:
-             # ... (Draft find existing logic) ...
-             # Try to find the ORIGINAL framework to overwrite
-            for root, dirs, files in os.walk(lib_path):
-                for f in files:
-                    clean_name = os.path.basename(doc_path).replace(".bs.md", ".md")
-                    if f == clean_name:
-                        existing_framework_path = os.path.join(root, f)
-                        break
-                if existing_framework_path: break
+        if result.payload:
+             defaults = result.payload
 
-            if existing_framework_path:
-                console.print(f"[yellow]⚠️  Found existing framework: {existing_framework_path}[/yellow]")
-
-                if force:
-                    overwrite_confirm = 'y'
-                    console.print("[cyan]Force overwrite active (--force)[/cyan]")
-                elif confirm:
-                     overwrite_confirm = 'y'
-                     console.print("[cyan]Auto-confirmed overwrite (--yes)[/cyan]")
-                else:
-                     overwrite_confirm = Prompt.ask(f"[red]Overwrite '{os.path.basename(existing_framework_path)}' with this draft?[/red]", choices=["y", "n"], default="n")
-
-                if overwrite_confirm == 'y':
-                    # ... (Overwrite logic) ...
-                    backup = backup_framework(existing_framework_path)
-                    console.print(f"[dim]📦 Backup saved to {backup}[/dim]")
-                    shutil.copy2(doc_path, existing_framework_path)
-                    console.print("[green]✔ Framework updated successfully![/green]")
-                    return
-
-        # If not draft overwrite, parse as doc
-        console.print(f"[bold cyan]📄 Parsing documentation: {doc_path}...[/bold cyan]")
-        parsed = parse_markdown_doc(doc_path)
-        if parsed and parsed.get("name"):
-            defaults = parsed
-            console.print(f"  [green]✔ Found:[/green] {defaults.get('name')} | {defaults.get('description')}")
-        else:
-             console.print(f"  [red]✘ Failed to parse doc or file not found.[/red]")
+             # If engine detected a draft that should be silently updated (e.g. from TUI)
+             # we still handle the specific CLI overwrite prompt here for now if needed,
+             # but we utilize the engine's parsed data.
+             if defaults.get("name"):
+                  console.print(f"  [green]✔ FrameworkEngine:[/green] {defaults.get('name')} | {defaults.get('description')}")
 
     # Template might still be in default or dynamic?
     if not os.path.exists(TEMPLATE_PATH):
@@ -237,7 +215,7 @@ def harvest_framework(doc_path=None, auto_path=None, name=None, description=None
         if "deploy" in framework_name.lower():
             is_deploy = True
         else:
-            if confirm: # Headless assumption: No deploy unless name says so
+            if confirm or tui_data: # Skip prompts in headless/TUI
                 pass
             else:
                 if Prompt.ask(f"[cyan]? Is this a Deployment Strategy?[/cyan]", choices=["y", "n"], default="n") == "y":
@@ -249,18 +227,20 @@ def harvest_framework(doc_path=None, auto_path=None, name=None, description=None
                 framework_name = f"Deploy {framework_name}"
         else:
             # Domain
-            if confirm:
-                domain = 'misc'
+            if confirm or tui_data:
+                 domain = domain or 'misc'
             else:
-                domain = Prompt.ask(f"[cyan]? Domain (e.g. ui, backend, devops)[/cyan]", default="misc")
+                 domain = Prompt.ask(f"[cyan]? Domain (e.g. ui, backend, devops)[/cyan]", default="misc")
 
         # Description
         def_desc = defaults.get("description", "")
         if description:
              desc_val = description
         else:
-             if confirm: desc_val = def_desc
-             else: desc_val = Prompt.ask(f"[cyan]? Description[/cyan]", default=def_desc if def_desc else "No description")
+             if confirm or tui_data:
+                 desc_val = description or def_desc or "No description"
+             else:
+                 desc_val = Prompt.ask(f"[cyan]? Description[/cyan]", default=def_desc if def_desc else "No description")
         description = desc_val
 
         # Grade
@@ -268,18 +248,22 @@ def harvest_framework(doc_path=None, auto_path=None, name=None, description=None
         if grade:
              grade_val = grade.upper()
         else:
-             if confirm: grade_val = def_grade
-             else: grade_val = Prompt.ask(f"[cyan]? Grade[/cyan]", choices=["A", "B", "C"], default=def_grade)
+             if confirm or tui_data:
+                 grade_val = grade or def_grade
+             else:
+                 grade_val = Prompt.ask(f"[cyan]? Grade[/cyan]", choices=["A", "B", "C"], default=def_grade)
         grade = grade_val
 
-        # Pros/Cons (Skip if headless/confirm, default to empty)
-        pros_input = defaults.get("pros", "")
-        if not confirm:
-             pros_input = Prompt.ask(f"[cyan]? Pros (comma separated)[/cyan]", default=pros_input)
+        # Pros/Cons (Skip if headless/confirm/tui, default to empty)
+        if not pros_input:
+            pros_input = defaults.get("pros", "")
+            if not confirm and not tui_data:
+                 pros_input = Prompt.ask(f"[cyan]? Pros (comma separated)[/cyan]", default=pros_input)
 
-        cons_input = defaults.get("cons", "")
-        if not confirm:
-             cons_input = Prompt.ask(f"[cyan]? Cons (comma separated)[/cyan]", default=cons_input)
+        if not cons_input:
+            cons_input = defaults.get("cons", "")
+            if not confirm and not tui_data:
+                 cons_input = Prompt.ask(f"[cyan]? Cons (comma separated)[/cyan]", default=cons_input)
 
 
         # Code Capture
@@ -289,7 +273,9 @@ def harvest_framework(doc_path=None, auto_path=None, name=None, description=None
         # If doc_path -> read file.
         # Manual paste -> loop.
 
-        if doc_path:
+        if tui_data and tui_data.get("snippet"):
+            code_snippet = tui_data.get("snippet")
+        elif doc_path:
              # Check extension and read
              valid_exts = ['.sh', '.py', '.js', '.jsx', '.ts', '.tsx', '.go', '.rs', '.java', '.php', '.rb', '.html', '.css', '.sql', '.json', '.yaml', '.yml', '.toml', '.md', '.txt']
              valid_names = ['Fastfile', 'Dockerfile', 'Makefile', 'Gemfile', 'Rakefile']
@@ -304,79 +290,55 @@ def harvest_framework(doc_path=None, auto_path=None, name=None, description=None
             # Reuse existing logic for loop but update prints to console.print
             pass
 
-        code_snippet = "\n\n".join(all_code_blocks) if all_code_blocks else ""
+        if not code_snippet:
+            code_snippet = "\n\n".join(all_code_blocks) if all_code_blocks else ""
 
-        # Sanitize filename
-        safe_name = framework_name.lower().replace(" ", "_")
-        if is_deploy and not safe_name.startswith("deploy_"):
-            safe_name = safe_name.replace("deploy-", "deploy_").replace("deploy", "deploy_")
-        filename = safe_name + ".md"
+        # 2. Finalize and Save via Engine
+        final_meta = {
+            "name": framework_name,
+            "domain": domain,
+            "description": description,
+            "grade": grade,
+            "pros": pros_input,
+            "cons": cons_input,
+            "snippet": code_snippet or defaults.get("snippet", "")
+        }
 
-        # Path adjustment
-        target_dir = os.path.join(lib_path, "skills", domain)
-        target_path = os.path.join(target_dir, filename)
+        save_res = engine.save_skill(final_meta, force=force)
 
-        if not os.path.exists(target_dir):
-            os.makedirs(target_dir)
+        if save_res.status == FrameworkStatus.FAILURE:
+            # If it's just an overwrite issue and we are in interactive mode, we can try one more time
+            if "already exists" in save_res.message and not confirm and not force and not tui_data:
+                 if Prompt.ask(f"[yellow]! {save_res.message} Overwrite?[/yellow]", choices=["y", "n"], default="n") == "y":
+                      save_res = engine.save_skill(final_meta, force=True)
+                 else:
+                      console.print("Aborted.")
+                      return
 
-        # CHECK OVERWRITE
-        if os.path.exists(target_path):
-            if force:
-                console.print(f"[yellow]! Framework '{filename}' exists. Force overwriting...[/yellow]")
-            elif confirm:
-                 console.print(f"[yellow]! Framework '{filename}' exists. Auto-confirming overwrite...[/yellow]")
-            else:
-                 if Prompt.ask(f"[yellow]! Framework '{filename}' exists. Overwrite?[/yellow]", choices=["y", "n"], default="n") == "n":
-                     console.print("Aborted.")
-                     return
+            if save_res.status == FrameworkStatus.FAILURE:
+                console.print(f"[red]❌ Error saving framework: {save_res.message}[/red]")
+                return
 
-
-        # 3. Create File from Template
-        with open(TEMPLATE_PATH, 'r') as t:
-            template_content = t.read()
-
-        # Simple replacement of placeholders
-        new_content = template_content.replace("[Framework Name]", framework_name)
-        new_content = new_content.replace("[e.g. Backend, UI, DevOps]", domain)
-        new_content = new_content.replace("[Description]", description)
-        new_content = new_content.replace("[Grade]", grade)
-
-        # Handle Pros/Cons list formatting
-        pros_list_str = "  - \"Standard Solution\""
-        if pros_input:
-             pros_list_str = "\n".join([f"  - \"{p.strip()}\"" for p in pros_input.split(",") if p.strip()])
-
-        cons_list_str = "  - \"None identified\""
-        if cons_input:
-             cons_list_str = "\n".join([f"  - \"{c.strip()}\"" for c in cons_input.split(",") if c.strip()])
-
-        new_content = new_content.replace("[Pros List]", pros_list_str)
-        new_content = new_content.replace("[Cons List]", cons_list_str)
-
-        # Inject captured code or use defaults
-        snippet = code_snippet or defaults.get("snippet", "")
-        if snippet:
-             new_content = new_content.replace("(Paste your code snippet here)", snippet)
-
-        with open(target_path, 'w') as f:
-            f.write(new_content)
+        target_path = save_res.path
+        safe_name = save_res.payload.get("safe_name")
 
         # === POST-HARVEST UX ===
         from rich.panel import Panel
 
-        # Celebratory Panel
-        console.print(Panel.fit(
-            f"[bold green]✅ Framework '{framework_name}' Harvested![/bold green]\n\n"
-            f"[cyan]📋 NEXT STEPS:[/cyan]\n"
-            f"  1. Edit: [yellow]jcapy open {safe_name}[/yellow]\n"
-            f"  2. Test: [yellow]jcapy apply {safe_name} --dry-run[/yellow]\n"
-            f"  3. Save: [yellow]jcapy push[/yellow]",
-            title="🌾 Harvest Complete",
-            border_style="green"
-        ))
+        if not tui_data:
+            # Celebratory Panel
+            console.print(Panel.fit(
+                f"[bold green]✅ Framework '{framework_name}' Harvested![/bold green]\n\n"
+                f"[cyan]📋 NEXT STEPS:[/cyan]\n"
+                f"  1. Edit: [yellow]jcapy open {safe_name}[/yellow]\n"
+                f"  2. Test: [yellow]jcapy apply {safe_name} --dry-run[/yellow]\n"
+                f"  3. Save: [yellow]jcapy push[/yellow]",
+                title="🌾 Harvest Complete",
+                border_style="green"
+            ))
 
         # Post-Harvest Continuation Menu
-        if not confirm and not force:
+        if not confirm and not force and not tui_data:
             while True:
                 console.print("\n[bold cyan]What's next?[/bold cyan]")
                 console.print("  [1] Apply/Test this framework")
@@ -573,54 +535,6 @@ def backup_framework(file_path):
     shutil.copy2(file_path, backup_path)
     return backup_path
 
-def parse_markdown_doc(doc_path):
-    """Extract skill details from a markdown documentation file"""
-    if not os.path.exists(doc_path):
-        return None
-
-    with open(doc_path, 'r') as f:
-        content = f.read()
-
-    meta = {
-        "name": "",
-        "description": "",
-        "snippet": "",
-        "grade": "B",
-        "pros": "",
-        "cons": ""
-    }
-
-    lines = content.split('\n')
-
-    # 1. Title (H1)
-    for line in lines:
-        if line.strip().startswith("# "):
-            meta["name"] = line.strip().replace("# ", "").strip()
-            break
-
-    # 2. Description (First paragraph after title)
-    for line in lines:
-        l = line.strip()
-        if l and not l.startswith("#") and not l.startswith("```"):
-            meta["description"] = l
-            break
-
-    # 3. Code Snippet (First code block)
-    if "```" in content:
-        try:
-            start = content.find("```") + 3
-            # Skip language identifier if present
-            end_line = content.find("\n", start)
-            if end_line != -1:
-                start = end_line + 1
-
-            end = content.find("```", start)
-            if end != -1:
-                meta["snippet"] = content[start:end].strip()
-        except:
-            pass
-
-    return meta
 
 def save_harvested_deploy(name, steps, lib_path):
     """Saves a deployment strategy as an executable framework"""
@@ -746,41 +660,6 @@ def apply_framework(framework_name, dry_run=False, context=None, interactive=Tru
     except ImportError:
         print("Rich not installed. Run 'pip install rich'")
 
-def parse_frontmatter(content):
-    """Extracts YAML frontmatter from markdown content with native fallback if PyYAML is missing"""
-    content = content.strip()
-    if not content.startswith("---"):
-        return None
-
-    try:
-        parts = content.split("---", 2)
-        if len(parts) < 3:
-            return None
-
-        yaml_content = parts[1].strip()
-
-        # Try PyYAML if available
-        try:
-            import yaml
-            return yaml.safe_load(yaml_content)
-        except ImportError:
-            # Native Fallback (Simple YAML subset: key: value)
-            meta = {}
-            for line in yaml_content.split("\n"):
-                if ":" in line:
-                    key, val = line.split(":", 1)
-                    key = key.strip()
-                    val = val.strip()
-                    # Handle basic lists [a, b] or simple strings
-                    if val.startswith("[") and val.endswith("]"):
-                        val = [i.strip().strip("'").strip('"') for i in val[1:-1].split(",")]
-                    else:
-                        val = val.strip("'").strip('"')
-                    meta[key] = val
-            return meta
-    except Exception as e:
-        return None
-    return None
 
 def merge_frameworks(init_project_func=None):
     """Merge two frameworks (Frontend + Backend) into a unified blueprint.
@@ -835,6 +714,7 @@ def merge_frameworks(init_project_func=None):
         all_frameworks = {} # name -> metadata
 
         # Recursive Scan and Parse
+        engine = FrameworkEngine()
         with console.status("[bold cyan]Scanning library for frameworks...") as status:
             for lib_path in lib_paths:
                 if not os.path.exists(lib_path): continue
@@ -843,10 +723,9 @@ def merge_frameworks(init_project_func=None):
                         if f.endswith(".md") and f != "TEMPLATE_FRAMEWORK.md":
                             path = os.path.join(root, f)
                             try:
-                                with open(path, 'r') as file:
-                                    content = file.read()
-                                    meta = parse_frontmatter(content)
-                                    if meta:
+                                    res = engine.harvest(path)
+                                    if res.status == FrameworkStatus.SUCCESS:
+                                        meta = res.payload
                                         framework_id = f.replace(".md", "")
                                         if framework_id not in all_frameworks:
                                             all_frameworks[framework_id] = meta

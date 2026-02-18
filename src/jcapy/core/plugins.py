@@ -226,6 +226,7 @@ class CommandRegistry:
                 setup_parser_func(parser)
                 parsed_args = parser.parse_args(cmd_args)
                 setattr(parsed_args, 'piped_data', piped_data)
+                setattr(parsed_args, 'tui_data', tui_data)
                 setattr(parsed_args, '_tokens', cmd_args)
                 mock_args = parsed_args
             except Exception:

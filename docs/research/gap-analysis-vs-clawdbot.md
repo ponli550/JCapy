@@ -144,12 +144,13 @@ graph TB
 | Category | JCapy | Clawdbot | Notes |
 |---|---|---|---|
 | **Developer Workflow** | ⭐⭐⭐⭐⭐ | ⭐⭐ | JCapy purpose-built for this |
-| **Knowledge Management** | ⭐⭐⭐⭐ | ⭐⭐⭐ | JCapy's harvest/apply is unique |
-| **AI Integration Depth** | ⭐⭐ | ⭐⭐⭐⭐⭐ | Clawdbot's MCP ecosystem is massive |
+| **Knowledge Management** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | JCapy's harvest/memorize is unmatched |
+| **AI Integration Depth** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | JCapy brain catching up via v2.0 roadmap |
 | **Distribution/Packaging** | ⭐⭐⭐⭐ | ⭐⭐⭐ | JCapy has Homebrew + pip |
 | **UX Polish** | ⭐⭐⭐⭐ | ⭐⭐ | JCapy's animations and TUI are superior |
 | **Integration Breadth** | ⭐ | ⭐⭐⭐⭐⭐ | Clawdbot connects to everything |
-| **Security** | ⭐⭐⭐⭐ | ⭐⭐ | Clawdbot has known attack vectors |
+| **Security** | ⭐⭐⭐⭐⭐ | ⭐⭐ | JCapy 2.0 mTLS + WASM sandboxing |
 | **One-Army Friendliness** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | JCapy is built for solo devs |
+| **Context Sovereignty** | ⭐⭐⭐⭐⭐ | ⭐⭐ | JCapy 2.0 ensures 100% local context control |
 
 **Overall**: JCapy is a **focused, opinionated developer tool** that excels at what it does. Clawdbot is a **broad AI assistant** that does many things but isn't purpose-built for development workflows. The gap is in **AI integration depth** (MCP + memory), not in core functionality.

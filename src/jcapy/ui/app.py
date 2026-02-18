@@ -19,7 +19,7 @@ from jcapy.ui.modes import InputMode
 from jcapy.ui.grammar import GrammarProcessor, Action
 import shlex
 import time
-from typing import Optional
+from typing import Optional, Callable
 
 class ModeHUD(Static):
     """A visual indicator for the current input mode."""
@@ -312,7 +312,7 @@ class JCapyApp(App):
     # ------------------------------------------------------------------
 
     @work(thread=True, exit_on_error=False)
-    def run_command(self, command_str: str, tui_data: Optional[dict] = None) -> None:
+    def run_command(self, command_str: str, tui_data: Optional[dict] = None, on_complete: Optional[Callable] = None) -> None:
         """Execute a command via the Shared Engine and route the result."""
         # --- Shell Suspension ---
         cmd_clean = command_str.strip().split(" ")[0].lower()
@@ -466,6 +466,10 @@ class JCapyApp(App):
             elif result.status == ResultStatus.WARNING:
                 severity = "warning"
             self.call_from_thread(self.notify, result.message, severity=severity)
+
+        # 4. Trigger completion callback
+        if on_complete:
+            self.call_from_thread(on_complete, result)
 
     # ------------------------------------------------------------------
     # Rendering Helpers

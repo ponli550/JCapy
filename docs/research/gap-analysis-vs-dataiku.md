@@ -155,13 +155,14 @@ graph LR
 | **ML/AI Pipeline** | ⭐ | ⭐⭐⭐⭐⭐ | JCapy isn't an ML tool |
 | **Data Engineering** | ⭐ | ⭐⭐⭐⭐⭐ | JCapy isn't a data tool |
 | **Developer Workflow** | ⭐⭐⭐⭐⭐ | ⭐⭐ | JCapy purpose-built for this |
-| **Knowledge Management** | ⭐⭐⭐⭐ | ⭐⭐⭐ | JCapy's harvest/apply is unique |
-| **AI Integration Quality** | ⭐⭐ | ⭐⭐⭐⭐⭐ | Dataiku's LLM Mesh is world-class |
+| **Knowledge Management** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | JCapy's harvest/memorize is unmatched |
+| **AI Integration Quality** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Dataiku's LLM Mesh is world-class |
 | **Cost Efficiency** | ⭐⭐⭐⭐⭐ | ⭐ | Free vs €50K+/year |
 | **Setup Speed** | ⭐⭐⭐⭐⭐ | ⭐⭐ | 30 seconds vs weeks of onboarding |
 | **One-Army Friendliness** | ⭐⭐⭐⭐⭐ | ⭐ | Dataiku requires a team to operate |
 | **UX Delight** | ⭐⭐⭐⭐ | ⭐⭐⭐ | JCapy's cinematic CLI vs corporate web UI |
 | **Enterprise Readiness** | ⭐ | ⭐⭐⭐⭐⭐ | Dataiku is built for Fortune 500 |
+| **Contextual Persistence** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | JCapy 2.0 (Orbital) matches enterprise depth |
 
 ---
 
