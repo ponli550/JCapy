@@ -112,898 +112,962 @@ which provides the `--lf` and `--ff` options, as well as the `cache` fixture.
 See [the docs](https://docs.pytest.org/en/stable/how-to/cache.html) for more information.
 
 
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/__init__.py ---
+--- FILE: ./test_venv/lib/python3.12/site-packages/py.py ---
+# shim for pylib going away
+# if pylib is installed this file will get skipped
+# (`py/__init__.py` has higher precedence)
 from __future__ import annotations
-
-__version__ = "26.0"
-
-
-def main(args: list[str] | None = None) -> int:
-    """This is an internal API only meant for use by pip's own console scripts.
-
-    For additional details, see https://github.com/pypa/pip/issues/7498.
-    """
-    from pip._internal.utils.entrypoints import _wrapper
-
-    return _wrapper(args)
-
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/__pip-runner__.py ---
-"""Execute exactly this copy of pip, within a different environment.
-
-This file is named as it is, to ensure that this module can't be imported via
-an import statement.
-"""
-
-# /!\ This version compatibility check section must be Python 2 compatible. /!\
 
 import sys
 
-# Copied from pyproject.toml
-PYTHON_REQUIRES = (3, 9)
+import _pytest._py.error as error
+import _pytest._py.path as path
 
 
-def version_str(version):  # type: ignore
-    return ".".join(str(v) for v in version)
+sys.modules["py.error"] = error
+sys.modules["py.path"] = path
+
+__all__ = ["error", "path"]
 
 
-if sys.version_info[:2] < PYTHON_REQUIRES:
-    raise SystemExit(
-        "This version of pip does not support python {} (requires >={}).".format(
-            version_str(sys.version_info[:2]), version_str(PYTHON_REQUIRES)
-        )
-    )
-
-# From here on, we can use Python 3 features, but the syntax must remain
-# Python 2 compatible.
-
-import runpy  # noqa: E402
-from importlib.machinery import PathFinder  # noqa: E402
-from os.path import dirname  # noqa: E402
-
-PIP_SOURCES_ROOT = dirname(dirname(__file__))
-
-
-class PipImportRedirectingFinder:
-    @classmethod
-    def find_spec(self, f
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/__main__.py ---
-import os
-import sys
-
-# Remove '' and current working directory from the first entry
-# of sys.path, if present to avoid using current directory
-# in pip commands check, freeze, install, list and show,
-# when invoked as python -m pip <command>
-if sys.path[0] in ("", os.getcwd()):
-    sys.path.pop(0)
-
-# If we are running from a wheel, add the wheel to sys.path
-# This allows the usage python pip-*.whl/pip install pip-*.whl
-if __package__ == "":
-    # __file__ is pip-*.whl/pip/__main__.py
-    # first dirname call strips of '/__main__.py', second strips off '/pip'
-    # Resulting path is the name of the wheel itself
-    # Add that to sys.path so we can import pip
-    path = os.path.dirname(os.path.dirname(__file__))
-    sys.path.insert(0, path)
-
-if __name__ == "__main__":
-    from pip._internal.cli.main import main as _main
-
-    sys.exit(_main())
-
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/configuration.py ---
-"""Configuration management setup
-
-Some terminology:
-- name
-  As written in config files.
-- value
-  Value associated with a name
-- key
-  Name combined with it's section (section.name)
-- variant
-  A single word describing where the configuration key-value pair came from
-"""
-
-from __future__ import annotations
-
-import configparser
-import locale
-import os
-import sys
-from collections.abc import Iterable
-from typing import Any, NewType
-
-from pip._internal.exceptions import (
-    ConfigurationError,
-    ConfigurationFileCouldNotBeLoaded,
-)
-from pip._internal.utils import appdirs
-from pip._internal.utils.compat import WINDOWS
-from pip._internal.utils.logging import getLogger
-from pip._internal.utils.misc import ensure_dir, enum
-
-RawConfigParser = configparser.RawConfigParser  # Shorthand
-Kind = NewType("Kind", str)
-
-CONFIG_BASENAME = "pip.ini" if WINDOWS else "pip.conf"
-ENV_NAMES_IGNORED = "version", "help"
-
-# The kinds of configurations there are.
-kinds = enum(
-    USER="user",  # User Speci
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/pyproject.py ---
-from __future__ import annotations
-
-import os
-from collections import namedtuple
-from typing import Any
-
-from pip._vendor.packaging.requirements import InvalidRequirement
-
-from pip._internal.exceptions import (
-    InstallationError,
-    InvalidPyProjectBuildRequires,
-    MissingPyProjectBuildRequires,
-)
-from pip._internal.utils.compat import tomllib
-from pip._internal.utils.packaging import get_requirement
-
-
-def _is_list_of_str(obj: Any) -> bool:
-    return isinstance(obj, list) and all(isinstance(item, str) for item in obj)
-
-
-def make_pyproject_path(unpacked_source_directory: str) -> str:
-    return os.path.join(unpacked_source_directory, "pyproject.toml")
-
-
-BuildSystemDetails = namedtuple(
-    "BuildSystemDetails", ["requires", "backend", "check", "backend_path"]
-)
-
-
-def load_pyproject_toml(
-    pyproject_toml: str, setup_py: str, req_name: str
-) -> BuildSystemDetails:
-    """Load the pyproject.toml file.
-
-    Parameters:
-        pyproject_toml - Location of the project's pyproject.
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/cache.py ---
-"""Cache Management"""
-
-from __future__ import annotations
-
-import hashlib
-import json
-import logging
-import os
-from pathlib import Path
-from typing import Any
-
-from pip._vendor.packaging.tags import Tag, interpreter_name, interpreter_version
-from pip._vendor.packaging.utils import canonicalize_name
-
-from pip._internal.exceptions import InvalidWheelFilename
-from pip._internal.models.direct_url import DirectUrl
-from pip._internal.models.link import Link
-from pip._internal.models.wheel import Wheel
-from pip._internal.utils.temp_dir import TempDirectory, tempdir_kinds
-from pip._internal.utils.urls import path_to_url
-
-logger = logging.getLogger(__name__)
-
-ORIGIN_JSON_NAME = "origin.json"
-
-
-def _hash_dict(d: dict[str, str]) -> str:
-    """Return a stable sha224 of a dictionary."""
-    s = json.dumps(d, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-    return hashlib.sha224(s.encode("ascii")).hexdigest()
-
-
-class Cache:
-    """An abstract class - provides cache directories for dat
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/__init__.py ---
-from __future__ import annotations
-
-from pip._internal.utils import _log
-
-# init_logging() must be called before any call to logging.getLogger()
-# which happens at import of most modules.
-_log.init_logging()
-
-
-def main(args: list[str] | None = None) -> int:
-    """This is preserved for old console scripts that may still be referencing
-    it.
-
-    For additional details, see https://github.com/pypa/pip/issues/7498.
-    """
-    from pip._internal.utils.entrypoints import _wrapper
-
-    return _wrapper(args)
-
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/exceptions.py ---
-"""Exceptions used throughout package.
-
-This module MUST NOT try to import from anything within `pip._internal` to
-operate. This is expected to be importable from any/all files within the
-subpackage and, thus, should not depend on them.
-"""
-
-from __future__ import annotations
-
-import configparser
+--- FILE: ./test_venv/lib/python3.12/site-packages/typing_extensions.py ---
+import abc
+import builtins
+import collections
+import collections.abc
 import contextlib
-import locale
-import logging
-import pathlib
-import re
-import sys
-import traceback
-from collections.abc import Iterable, Iterator
-from itertools import chain, groupby, repeat
-from typing import TYPE_CHECKING, Literal
-
-from pip._vendor.packaging.requirements import InvalidRequirement
-from pip._vendor.packaging.version import InvalidVersion
-from pip._vendor.rich.console import Console, ConsoleOptions, RenderResult
-from pip._vendor.rich.markup import escape
-from pip._vendor.rich.text import Text
-
-if TYPE_CHECKING:
-    from hashlib import _Hash
-
-    from pip._vendor.requests.models import PreparedRequest, Request, Response
-
-    from pip._internal.metadata import BaseDistribution
- 
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/main.py ---
-from __future__ import annotations
-
-
-def main(args: list[str] | None = None) -> int:
-    """This is preserved for old console scripts that may still be referencing
-    it.
-
-    For additional details, see https://github.com/pypa/pip/issues/7498.
-    """
-    from pip._internal.utils.entrypoints import _wrapper
-
-    return _wrapper(args)
-
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/wheel_builder.py ---
-"""Orchestrator for building wheels from InstallRequirements."""
-
-from __future__ import annotations
-
-import logging
-import os.path
-import re
-from collections.abc import Iterable
-from tempfile import TemporaryDirectory
-
-from pip._vendor.packaging.utils import canonicalize_name, canonicalize_version
-from pip._vendor.packaging.version import InvalidVersion, Version
-
-from pip._internal.cache import WheelCache
-from pip._internal.exceptions import InvalidWheelFilename, UnsupportedWheel
-from pip._internal.metadata import FilesystemWheel, get_wheel_distribution
-from pip._internal.models.link import Link
-from pip._internal.models.wheel import Wheel
-from pip._internal.operations.build.wheel import build_wheel_pep517
-from pip._internal.operations.build.wheel_editable import build_wheel_editable
-from pip._internal.req.req_install import InstallRequirement
-from pip._internal.utils.logging import indent_log
-from pip._internal.utils.misc import ensure_dir, hash_file
-from pip._internal.utils.urls imp
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/self_outdated_check.py ---
-from __future__ import annotations
-
-import datetime
+import enum
 import functools
-import hashlib
-import json
-import logging
-import optparse
-import os.path
+import inspect
+import io
+import keyword
+import operator
 import sys
-from dataclasses import dataclass
-from typing import Callable
-
-from pip._vendor.packaging.version import Version
-from pip._vendor.packaging.version import parse as parse_version
-from pip._vendor.rich.console import Group
-from pip._vendor.rich.markup import escape
-from pip._vendor.rich.text import Text
-
-from pip._internal.index.collector import LinkCollector
-from pip._internal.index.package_finder import PackageFinder
-from pip._internal.metadata import get_default_environment
-from pip._internal.models.release_control import ReleaseControl
-from pip._internal.models.selection_prefs import SelectionPreferences
-from pip._internal.network.session import PipSession
-from pip._internal.utils.compat import WINDOWS
-from pip._internal.utils.datetime import parse_iso_datetime
-from pip._internal.utils.entrypoints import (
-    get_best_invocation_for
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/build_env.py ---
-"""Build Environment used for isolation during sdist building"""
-
-from __future__ import annotations
-
-import logging
-import os
-import pathlib
-import site
-import sys
-import textwrap
-from collections import OrderedDict
-from collections.abc import Iterable, Sequence
-from contextlib import AbstractContextManager as ContextManager
-from contextlib import nullcontext
-from io import StringIO
-from types import TracebackType
-from typing import TYPE_CHECKING, Protocol, TypedDict
-
-from pip._vendor.packaging.version import Version
-
-from pip import __file__ as pip_location
-from pip._internal.cli.spinners import open_rich_spinner, open_spinner
-from pip._internal.exceptions import (
-    BuildDependencyInstallError,
-    DiagnosticPipError,
-    InstallWheelBuildError,
-    PipError,
-)
-from pip._internal.locations import get_platlib, get_purelib, get_scheme
-from pip._internal.metadata import get_default_environment, get_environment
-from pip._internal.utils.deprecation import deprecated
-from pip._internal.
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/network/auth.py ---
-"""Network Authentication Helpers
-
-Contains interface (MultiDomainBasicAuth) and associated glue code for
-providing credentials in the context of network requests.
-"""
-
-from __future__ import annotations
-
-import logging
-import os
-import shutil
-import subprocess
-import sysconfig
+import types as _types
 import typing
-import urllib.parse
-from abc import ABC, abstractmethod
-from functools import cache
-from os.path import commonprefix
-from pathlib import Path
-from typing import Any, NamedTuple
+import warnings
 
-from pip._vendor.requests.auth import AuthBase, HTTPBasicAuth
-from pip._vendor.requests.utils import get_netrc_auth
+# Breakpoint: https://github.com/python/cpython/pull/119891
+if sys.version_info >= (3, 14):
+    import annotationlib
 
-from pip._internal.utils.logging import getLogger
-from pip._internal.utils.misc import (
-    ask,
-    ask_input,
-    ask_password,
-    remove_auth_from_url,
-    split_auth_netloc_from_url,
+__all__ = [
+    # Super-special typing primitives.
+    'Any',
+    'ClassVar',
+    'Concatenate',
+    'Final',
+    'LiteralString',
+    'ParamSpec',
+    'ParamSpecArgs',
+    'ParamSpecKwargs',
+    'Self',
+    'Type',
+    'TypeVar',
+    'TypeVarTuple',
+    'Unpack',
+
+    # ABCs (from collections.abc).
+    'Awaitable',
+    'AsyncIterator',
+    'AsyncIterable',
+    'Coroutine',
+    'AsyncGenerator',
+    'AsyncContextManager',
+    'Buffer',
+    'ChainMap',
+
+    # Concrete collection types.
+    'ContextManager',
+    'Counter',
+    'Deque',
+    'DefaultDict',
+    'NamedTuple',
+    'OrderedDict',
+    'TypedDict',
+
+    # Structural checks, a.k.a.
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/mdurl/_decode.py ---
+from __future__ import annotations
+
+from collections.abc import Sequence
+import functools
+import re
+
+DECODE_DEFAULT_CHARS = ";/?:@&=+$,#"
+DECODE_COMPONENT_CHARS = ""
+
+decode_cache: dict[str, list[str]] = {}
+
+
+def get_decode_cache(exclude: str) -> Sequence[str]:
+    if exclude in decode_cache:
+        return decode_cache[exclude]
+
+    cache: list[str] = []
+    decode_cache[exclude] = cache
+
+    for i in range(128):
+        ch = chr(i)
+        cache.append(ch)
+
+    for i in range(len(exclude)):
+        ch_code = ord(exclude[i])
+        cache[ch_code] = "%" + ("0" + hex(ch_code)[2:].upper())[-2:]
+
+    return cache
+
+
+# Decode percent-encoded string.
+#
+def decode(string: str, exclude: str = DECODE_DEFAULT_CHARS) -> str:
+    cache = get_decode_cache(exclude)
+    repl_func = functools.partial(repl_func_with_cache, cache=cache)
+    return re.sub(r"(%[a-f0-9]{2})+", repl_func, string, flags=re.IGNORECASE)
+
+
+def repl_func_with_cache(match: re.Match, cache: Sequence[str]) -> str:
+    seq = match.
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/mdurl/_url.py ---
+from __future__ import annotations
+
+from typing import NamedTuple
+
+
+class URL(NamedTuple):
+    protocol: str | None
+    slashes: bool
+    auth: str | None
+    port: str | None
+    hostname: str | None
+    hash: str | None  # noqa: A003
+    search: str | None
+    pathname: str | None
+
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/mdurl/__init__.py ---
+__all__ = (
+    "decode",
+    "DECODE_DEFAULT_CHARS",
+    "DECODE_COMPONENT_CHARS",
+    "encode",
+    "ENCODE_DEFAULT_CHARS",
+    "ENCODE_COMPONENT_CHARS",
+    "format",
+    "parse",
+    "URL",
 )
-from pip._internal.vcs.versioncontrol import AuthInfo
+__version__ = "0.1.2"  # DO NOT EDIT THIS LINE MANUALLY. LET bump2version UTILITY DO IT
 
-if typing.TYPE_CHECKING:
-    from pip._vendor.requests import PreparedRequest
-    from pip._vendor.requests.models import Response
+from mdurl._decode import DECODE_COMPONENT_CHARS, DECODE_DEFAULT_CHARS, decode
+from mdurl._encode import ENCODE_COMPONENT_CHARS, ENCODE_DEFAULT_CHARS, encode
+from mdurl._format import format
+from mdurl._parse import url_parse as parse
+from mdurl._url import URL
 
-logger = getLogger(__name__)
 
-KEYR
+--- FILE: ./test_venv/lib/python3.12/site-packages/mdurl/_format.py ---
+from __future__ import annotations
 
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/network/xmlrpc.py ---
-"""xmlrpclib.Transport implementation"""
-
-import logging
-import urllib.parse
-import xmlrpc.client
 from typing import TYPE_CHECKING
 
-from pip._internal.exceptions import NetworkConnectionError
-from pip._internal.network.session import PipSession
-from pip._internal.network.utils import raise_for_status
-
 if TYPE_CHECKING:
-    from xmlrpc.client import _HostType, _Marshallable
-
-    from _typeshed import SizedBuffer
-
-logger = logging.getLogger(__name__)
+    from mdurl._url import URL
 
 
-class PipXmlrpcTransport(xmlrpc.client.Transport):
-    """Provide a `xmlrpclib.Transport` implementation via a `PipSession`
-    object.
-    """
+def format(url: URL) -> str:  # noqa: A001
+    result = ""
 
-    def __init__(
-        self, index_url: str, session: PipSession, use_datetime: bool = False
-    ) -> None:
-        super().__init__(use_datetime)
-        index_parts = urllib.parse.urlparse(index_url)
-        self._scheme = index_parts.scheme
-        self._session = session
+    result += url.protocol or ""
+    result += "//" if url.slashes else ""
+    result += url.auth + "@" if url.auth else ""
 
-    def request(
-        self,
-        host: "_HostType",
-        handler: str,
-        request_body: "SizedBuffer",
-   
+    if url.hostname and ":" in url.hostname:
+        # ipv6 address
+        result += "[" + url.hostname + "]"
+    else:
+        result += url.hostname or ""
 
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/network/download.py ---
-"""Download files with progress indicators."""
+    result += ":" + url.port if url.port else ""
+    result += url.pathname or ""
+    result += url.search or ""
+    result += url.hash or ""
+
+    return result
+
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/mdurl/_parse.py ---
+# Copyright Joyent, Inc. and other Node contributors.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a
+# copy of this software and associated documentation files (the
+# "Software"), to deal in the Software without restriction, including
+# without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to permit
+# persons to whom the Software is furnished to do so, subject to the
+# following conditions:
+#
+# The above copyright notice and this permission notice shall be included
+# in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+# OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+# NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+# DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+# OT
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/mdurl/_encode.py ---
+from __future__ import annotations
+
+from collections.abc import Sequence
+from string import ascii_letters, digits, hexdigits
+from urllib.parse import quote as encode_uri_component
+
+ASCII_LETTERS_AND_DIGITS = ascii_letters + digits
+
+ENCODE_DEFAULT_CHARS = ";/?:@&=+$,-_.!~*'()#"
+ENCODE_COMPONENT_CHARS = "-_.!~*'()"
+
+encode_cache: dict[str, list[str]] = {}
+
+
+# Create a lookup array where anything but characters in `chars` string
+# and alphanumeric chars is percent-encoded.
+def get_encode_cache(exclude: str) -> Sequence[str]:
+    if exclude in encode_cache:
+        return encode_cache[exclude]
+
+    cache: list[str] = []
+    encode_cache[exclude] = cache
+
+    for i in range(128):
+        ch = chr(i)
+
+        if ch in ASCII_LETTERS_AND_DIGITS:
+            # always allow unencoded alphanumeric characters
+            cache.append(ch)
+        else:
+            cache.append("%" + ("0" + hex(i)[2:].upper())[-2:])
+
+    for i in range(len(exclude)):
+        cache[ord(exclude[i])] = exclude[i]
+
+    
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/packaging/tags.py ---
+# This file is dual licensed under the terms of the Apache License, Version
+# 2.0, and the BSD License. See the LICENSE file in the root of this repository
+# for complete details.
 
 from __future__ import annotations
 
-import email.message
 import logging
-import mimetypes
-import os
-from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
-from http import HTTPStatus
-from typing import BinaryIO
-
-from pip._vendor.requests import PreparedRequest
-from pip._vendor.requests.models import Response
-from pip._vendor.urllib3 import HTTPResponse as URLlib3Response
-from pip._vendor.urllib3._collections import HTTPHeaderDict
-from pip._vendor.urllib3.exceptions import ReadTimeoutError
-
-from pip._internal.cli.progress_bars import BarType, get_download_progress_renderer
-from pip._internal.exceptions import IncompleteDownloadError, NetworkConnectionError
-from pip._internal.models.index import PyPI
-from pip._internal.models.link import Link
-from pip._internal.network.cache import SafeFileCache, is_from_cache
-from pip._internal.network.session import CacheControlAdapter, PipSession
-from pip._internal.network.utils i
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/network/session.py ---
-"""PipSession and supporting code, containing all pip-specific
-network request configuration and behavior.
-"""
-
-from __future__ import annotations
-
-import email.utils
-import functools
-import io
-import ipaddress
-import json
-import logging
-import mimetypes
-import os
 import platform
-import shutil
+import re
+import struct
 import subprocess
 import sys
-import urllib.parse
-import warnings
-from collections.abc import Generator, Mapping, Sequence
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Optional,
-    Union,
-)
-
-from pip._vendor import requests, urllib3
-from pip._vendor.cachecontrol import CacheControlAdapter as _BaseCacheControlAdapter
-from pip._vendor.requests.adapters import DEFAULT_POOLBLOCK, BaseAdapter
-from pip._vendor.requests.adapters import HTTPAdapter as _BaseHTTPAdapter
-from pip._vendor.requests.models import PreparedRequest, Response
-from pip._vendor.requests.structures import CaseInsensitiveDict
-from pip._vendor.urllib3.connectionpool import ConnectionPool
-from pip._vendor.urllib3.exceptions impo
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/network/cache.py ---
-"""HTTP cache implementation."""
-
-from __future__ import annotations
-
-import os
-import shutil
-from collections.abc import Generator
-from contextlib import contextmanager
-from datetime import datetime
-from typing import Any, BinaryIO, Callable
-
-from pip._vendor.cachecontrol.cache import SeparateBodyBaseCache
-from pip._vendor.cachecontrol.caches import SeparateBodyFileCache
-from pip._vendor.requests.models import Response
-
-from pip._internal.utils.filesystem import (
-    adjacent_tmp_file,
-    copy_directory_permissions,
-    replace,
-)
-from pip._internal.utils.misc import ensure_dir
-
-
-def is_from_cache(response: Response) -> bool:
-    return getattr(response, "from_cache", False)
-
-
-@contextmanager
-def suppressed_cache_errors() -> Generator[None, None, None]:
-    """If we can't access the cache then we can just skip caching and process
-    requests as if caching wasn't enabled.
-    """
-    try:
-        yield
-    except OSError:
-        pass
-
-
-class SafeFileCache(SeparateBodyBaseCache):
-  
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/network/__init__.py ---
-"""Contains purely network-related utilities."""
-
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/network/utils.py ---
-from collections.abc import Generator
-
-from pip._vendor.requests.models import Response
-
-from pip._internal.exceptions import NetworkConnectionError
-
-# The following comments and HTTP headers were originally added by
-# Donald Stufft in git commit 22c562429a61bb77172039e480873fb239dd8c03.
-#
-# We use Accept-Encoding: identity here because requests defaults to
-# accepting compressed responses. This breaks in a variety of ways
-# depending on how the server is configured.
-# - Some servers will notice that the file isn't a compressible file
-#   and will leave the file alone and with an empty Content-Encoding
-# - Some servers will notice that the file is already compressed and
-#   will leave the file alone, adding a Content-Encoding: gzip header
-# - Some servers won't notice anything at all and will take a file
-#   that's already been compressed and compress it again, and set
-#   the Content-Encoding: gzip header
-# By setting this to request only the identity encoding we're hoping
-# to elimin
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/network/lazy_wheel.py ---
-"""Lazy ZIP over HTTP"""
-
-from __future__ import annotations
-
-__all__ = ["HTTPRangeRequestUnsupported", "dist_from_wheel_url"]
-
-from bisect import bisect_left, bisect_right
-from collections.abc import Generator
-from contextlib import contextmanager
-from tempfile import NamedTemporaryFile
-from typing import Any
-from zipfile import BadZipFile, ZipFile
-
-from pip._vendor.packaging.utils import NormalizedName
-from pip._vendor.requests.models import CONTENT_CHUNK_SIZE, Response
-
-from pip._internal.metadata import BaseDistribution, MemoryWheel, get_wheel_distribution
-from pip._internal.network.session import PipSession
-from pip._internal.network.utils import HEADERS, raise_for_status, response_chunks
-
-
-class HTTPRangeRequestUnsupported(Exception):
-    pass
-
-
-def dist_from_wheel_url(
-    name: NormalizedName, url: str, session: PipSession
-) -> BaseDistribution:
-    """Return a distribution object from the given wheel URL.
-
-    This uses HTTP range requests to only fetch the portion of the whee
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/utils/logging.py ---
-from __future__ import annotations
-
-import contextlib
-import errno
-import logging
-import logging.handlers
-import os
-import sys
-import threading
-from collections.abc import Generator
-from dataclasses import dataclass
-from io import StringIO, TextIOWrapper
-from logging import Filter
-from typing import Any, ClassVar
-
-from pip._vendor.rich.console import (
-    Console,
-    ConsoleOptions,
-    ConsoleRenderable,
-    RenderableType,
-    RenderResult,
-    RichCast,
-)
-from pip._vendor.rich.highlighter import NullHighlighter
-from pip._vendor.rich.logging import RichHandler
-from pip._vendor.rich.segment import Segment
-from pip._vendor.rich.style import Style
-
-from pip._internal.utils._log import VERBOSE, getLogger
-from pip._internal.utils.compat import WINDOWS
-from pip._internal.utils.deprecation import DEPRECATION_MSG_PREFIX
-from pip._internal.utils.misc import StreamWrapper, ensure_dir
-
-_log_state = threading.local()
-_stdout_console = None
-_stderr_console = None
-subprocess_logger = getLogger("
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/utils/misc.py ---
-from __future__ import annotations
-
-import errno
-import getpass
-import hashlib
-import logging
-import os
-import posixpath
-import shutil
-import stat
-import sys
 import sysconfig
-import urllib.parse
-from collections.abc import Generator, Iterable, Iterator, Mapping, Sequence
-from dataclasses import dataclass
-from functools import partial
-from io import StringIO
-from itertools import filterfalse, tee, zip_longest
-from pathlib import Path
-from types import FunctionType, TracebackType
+from importlib.machinery import EXTENSION_SUFFIXES
 from typing import (
     Any,
-    BinaryIO,
-    Callable,
-    Optional,
-    TextIO,
-    TypeVar,
+    Iterable,
+    Iterator,
+    Sequence,
+    Tuple,
     cast,
 )
 
-from pip._vendor.packaging.requirements import Requirement
-from pip._vendor.pyproject_hooks import BuildBackendHookCaller
-
-from pip import __version__
-from pip._internal.exceptions import CommandError, ExternallyManagedEnvironment
-from pip._internal.locations import get_major_minor_version
-from pip._internal.utils.compat import WINDOWS
-from pip._internal.utils.retry import retry
-from pip._internal.utils.
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/utils/egg_link.py ---
-from __future__ import annotations
-
-import os
-import re
-import sys
-
-from pip._internal.locations import site_packages, user_site
-from pip._internal.utils.virtualenv import (
-    running_under_virtualenv,
-    virtualenv_no_global,
-)
-
-__all__ = [
-    "egg_link_path_from_sys_path",
-    "egg_link_path_from_location",
-]
-
-
-def _egg_link_names(raw_name: str) -> list[str]:
-    """
-    Convert a Name metadata value to a .egg-link name, by applying
-    the same substitution as pkg_resources's safe_name function.
-    Note: we cannot use canonicalize_name because it has a different logic.
-
-    We also look for the raw name (without normalization) as setuptools 69 changed
-    the way it names .egg-link files (https://github.com/pypa/setuptools/issues/4167).
-    """
-    return [
-        re.sub("[^A-Za-z0-9.]+", "-", raw_name) + ".egg-link",
-        f"{raw_name}.egg-link",
-    ]
-
-
-def egg_link_path_from_sys_path(raw_name: str) -> str | None:
-    """
-    Look for a .egg-link file for project name, by 
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/utils/compat.py ---
-"""Stuff that differs in different Python versions and platform
-distributions."""
-
-import importlib.resources
-import logging
-import os
-import sys
-from typing import IO
-
-__all__ = ["get_path_uid", "stdlib_pkgs", "tomllib", "WINDOWS"]
-
+from . import _manylinux, _musllinux
 
 logger = logging.getLogger(__name__)
 
+PythonVersion = Sequence[int]
+AppleVersion = Tuple[int, int]
 
-def has_tls() -> bool:
-    try:
-        import _ssl  # noqa: F401  # ignore unused
-
-        return True
-    except ImportError:
-        pass
-
-    from pip._vendor.urllib3.util import IS_PYOPENSSL
-
-    return IS_PYOPENSSL
+INTERPRETER_SHORT_NAMES: dict[str, str] = {
+    "python": "py",  # Generic.
+    "cpython": "cp",
+    "pypy": "pp",
+    "ironpython": "ip",
+    "jython": "jy",
+}
 
 
-def get_path_uid(path: str) -> int:
+_32_BIT_INTERPRETER = struct.calcsize("P") == 4
+
+
+class Tag:
     """
-    Return path's uid.
+    A representation of the tag triple for a wheel.
 
-    Does not follow symlinks:
-        https://github.com/pypa/pip/pull/935#discussion_r5307003
-
-    Placed this function in compat due to differences on AIX and
-    Jython, that should eventually go away.
-
-    :raises OSError: When path is a symlink or can't be read.
+    Instances are considered immutable and thus are hashable. Equality checking
+    is also supported.
     """
-    if hasattr(os, "O_NOFOLLOW"):
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-        file_uid = os.fstat(fd).st_uid
-        os.close(fd)
-    else:
 
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/utils/deprecation.py ---
-"""
-A module that implements tooling to enable easy warnings about deprecations.
+
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/packaging/_musllinux.py ---
+"""PEP 656 support.
+
+This module implements logic to detect if the currently running Python is
+linked against musl, and what musl version is used.
 """
 
 from __future__ import annotations
 
+import functools
+import re
+import subprocess
+import sys
+from typing import Iterator, NamedTuple, Sequence
+
+from ._elffile import ELFFile
+
+
+class _MuslVersion(NamedTuple):
+    major: int
+    minor: int
+
+
+def _parse_musl_version(output: str) -> _MuslVersion | None:
+    lines = [n for n in (n.strip() for n in output.splitlines()) if n]
+    if len(lines) < 2 or lines[0][:4] != "musl":
+        return None
+    m = re.match(r"Version (\d+)\.(\d+)", lines[1])
+    if not m:
+        return None
+    return _MuslVersion(major=int(m.group(1)), minor=int(m.group(2)))
+
+
+@functools.lru_cache
+def _get_musl_version(executable: str) -> _MuslVersion | None:
+    """Detect currently-running musl runtime version.
+
+    This is done by checking the specified executable's dynamic linking
+    information, and invoking the loade
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/packaging/metadata.py ---
+from __future__ import annotations
+
+import email.feedparser
+import email.header
+import email.message
+import email.parser
+import email.policy
+import keyword
+import pathlib
+import sys
+import typing
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Literal,
+    TypedDict,
+    cast,
+)
+
+from . import licenses, requirements, specifiers, utils
+from . import version as version_module
+
+if typing.TYPE_CHECKING:
+    from .licenses import NormalizedLicenseExpression
+
+T = typing.TypeVar("T")
+
+
+if sys.version_info >= (3, 11):  # pragma: no cover
+    ExceptionGroup = ExceptionGroup  # noqa: F821
+else:  # pragma: no cover
+
+    class ExceptionGroup(Exception):
+        """A minimal implementation of :external:exc:`ExceptionGroup` from Python 3.11.
+
+        If :external:exc:`ExceptionGroup` is already defined by Python itself,
+        that version is used instead.
+        """
+
+        message: str
+        exceptions: list[Exception]
+
+        def __init__(self, message: str, exceptions: list[Ex
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/packaging/version.py ---
+# This file is dual licensed under the terms of the Apache License, Version
+# 2.0, and the BSD License. See the LICENSE file in the root of this repository
+# for complete details.
+"""
+.. testsetup::
+
+    from packaging.version import parse, Version
+"""
+
+from __future__ import annotations
+
+import re
+import sys
+import typing
+from typing import (
+    Any,
+    Callable,
+    Literal,
+    NamedTuple,
+    SupportsInt,
+    Tuple,
+    TypedDict,
+    Union,
+)
+
+from ._structures import Infinity, InfinityType, NegativeInfinity, NegativeInfinityType
+
+if typing.TYPE_CHECKING:
+    from typing_extensions import Self, Unpack
+
+if sys.version_info >= (3, 13):  # pragma: no cover
+    from warnings import deprecated as _deprecated
+elif typing.TYPE_CHECKING:
+    from typing_extensions import deprecated as _deprecated
+else:  # pragma: no cover
+    import functools
+    import warnings
+
+    def _deprecated(message: str) -> object:
+        def decorator(func: object) -> object:
+            @functools.wraps(func
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/packaging/pylock.py ---
+from __future__ import annotations
+
+import dataclasses
 import logging
+import re
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from datetime import datetime
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Protocol,
+    TypeVar,
+)
+
+from .markers import Marker
+from .specifiers import SpecifierSet
+from .utils import NormalizedName, is_normalized_name
+from .version import Version
+
+if TYPE_CHECKING:  # pragma: no cover
+    from pathlib import Path
+
+    from typing_extensions import Self
+
+_logger = logging.getLogger(__name__)
+
+__all__ = [
+    "Package",
+    "PackageArchive",
+    "PackageDirectory",
+    "PackageSdist",
+    "PackageVcs",
+    "PackageWheel",
+    "Pylock",
+    "PylockUnsupportedVersionError",
+    "PylockValidationError",
+    "is_valid_pylock_path",
+]
+
+_T = TypeVar("_T")
+_T2 = TypeVar("_T2")
+
+
+class _FromMappingProtocol(Protocol):  # pragma: no cover
+    @classmethod
+    def _from_dict(cls, d: Mapping[str, Any]) -> Self: ...
+
+
+_
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/packaging/__init__.py ---
+# This file is dual licensed under the terms of the Apache License, Version
+# 2.0, and the BSD License. See the LICENSE file in the root of this repository
+# for complete details.
+
+__title__ = "packaging"
+__summary__ = "Core utilities for Python packages"
+__uri__ = "https://github.com/pypa/packaging"
+
+__version__ = "26.0"
+
+__author__ = "Donald Stufft and individual contributors"
+__email__ = "donald@stufft.io"
+
+__license__ = "BSD-2-Clause or Apache-2.0"
+__copyright__ = f"2014 {__author__}"
+
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/packaging/_parser.py ---
+"""Handwritten parser of dependency specifiers.
+
+The docstring for each __parse_* function contains EBNF-inspired grammar representing
+the implementation.
+"""
+
+from __future__ import annotations
+
+import ast
+from typing import List, Literal, NamedTuple, Sequence, Tuple, Union
+
+from ._tokenizer import DEFAULT_RULES, Tokenizer
+
+
+class Node:
+    __slots__ = ("value",)
+
+    def __init__(self, value: str) -> None:
+        self.value = value
+
+    def __str__(self) -> str:
+        return self.value
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__}({self.value!r})>"
+
+    def serialize(self) -> str:
+        raise NotImplementedError
+
+
+class Variable(Node):
+    __slots__ = ()
+
+    def serialize(self) -> str:
+        return str(self)
+
+
+class Value(Node):
+    __slots__ = ()
+
+    def serialize(self) -> str:
+        return f'"{self}"'
+
+
+class Op(Node):
+    __slots__ = ()
+
+    def serialize(self) -> str:
+        return str(self)
+
+
+MarkerLogical = Literal["and", "or"]
+MarkerVa
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/packaging/utils.py ---
+# This file is dual licensed under the terms of the Apache License, Version
+# 2.0, and the BSD License. See the LICENSE file in the root of this repository
+# for complete details.
+
+from __future__ import annotations
+
+import re
+from typing import NewType, Tuple, Union, cast
+
+from .tags import Tag, parse_tag
+from .version import InvalidVersion, Version, _TrimmedRelease
+
+BuildTag = Union[Tuple[()], Tuple[int, str]]
+NormalizedName = NewType("NormalizedName", str)
+
+
+class InvalidName(ValueError):
+    """
+    An invalid distribution name; users should refer to the packaging user guide.
+    """
+
+
+class InvalidWheelFilename(ValueError):
+    """
+    An invalid wheel filename was found, users should refer to PEP 427.
+    """
+
+
+class InvalidSdistFilename(ValueError):
+    """
+    An invalid sdist filename was found, users should refer to the packaging user guide.
+    """
+
+
+# Core metadata spec for `Name`
+_validate_regex = re.compile(r"[A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9]", re.IGNORECASE)
+_normali
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/packaging/requirements.py ---
+# This file is dual licensed under the terms of the Apache License, Version
+# 2.0, and the BSD License. See the LICENSE file in the root of this repository
+# for complete details.
+from __future__ import annotations
+
+from typing import Iterator
+
+from ._parser import parse_requirement as _parse_requirement
+from ._tokenizer import ParserSyntaxError
+from .markers import Marker, _normalize_extra_values
+from .specifiers import SpecifierSet
+from .utils import canonicalize_name
+
+
+class InvalidRequirement(ValueError):
+    """
+    An invalid requirement was found, users should refer to PEP 508.
+    """
+
+
+class Requirement:
+    """Parse a requirement.
+
+    Parse a given requirement string into its parts, such as name, specifier,
+    URL, and extras. Raises InvalidRequirement on a badly-formed requirement
+    string.
+    """
+
+    # TODO: Can we test whether something is contained within a requirement?
+    #       If so how do we do that? Do we need to test against the _name_ of
+    #       the thi
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/packaging/_structures.py ---
+# This file is dual licensed under the terms of the Apache License, Version
+# 2.0, and the BSD License. See the LICENSE file in the root of this repository
+# for complete details.
+
+import typing
+
+
+@typing.final
+class InfinityType:
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "Infinity"
+
+    def __hash__(self) -> int:
+        return hash(repr(self))
+
+    def __lt__(self, other: object) -> bool:
+        return False
+
+    def __le__(self, other: object) -> bool:
+        return False
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, self.__class__)
+
+    def __gt__(self, other: object) -> bool:
+        return True
+
+    def __ge__(self, other: object) -> bool:
+        return True
+
+    def __neg__(self: object) -> "NegativeInfinityType":
+        return NegativeInfinity
+
+
+Infinity = InfinityType()
+
+
+@typing.final
+class NegativeInfinityType:
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "-Infinity"
+
+    def __hash__(self) -> 
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/packaging/markers.py ---
+# This file is dual licensed under the terms of the Apache License, Version
+# 2.0, and the BSD License. See the LICENSE file in the root of this repository
+# for complete details.
+
+from __future__ import annotations
+
+import operator
+import os
+import platform
+import sys
+from typing import AbstractSet, Callable, Literal, Mapping, TypedDict, Union, cast
+
+from ._parser import MarkerAtom, MarkerList, Op, Value, Variable
+from ._parser import parse_marker as _parse_marker
+from ._tokenizer import ParserSyntaxError
+from .specifiers import InvalidSpecifier, Specifier
+from .utils import canonicalize_name
+
+__all__ = [
+    "Environment",
+    "EvaluateContext",
+    "InvalidMarker",
+    "Marker",
+    "UndefinedComparison",
+    "UndefinedEnvironmentName",
+    "default_environment",
+]
+
+Operator = Callable[[str, Union[str, AbstractSet[str]]], bool]
+EvaluateContext = Literal["metadata", "lock_file", "requirement"]
+MARKERS_ALLOWING_SET = {"extras", "dependency_groups"}
+MARKERS_REQUIRING_VERSION = {
+    "i
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/packaging/_manylinux.py ---
+from __future__ import annotations
+
+import collections
+import contextlib
+import functools
+import os
+import re
+import sys
 import warnings
-from typing import Any, TextIO
+from typing import Generator, Iterator, NamedTuple, Sequence
 
-from pip._vendor.packaging.version import parse
+from ._elffile import EIClass, EIData, ELFFile, EMachine
 
-from pip import __version__ as current_version  # NOTE: tests patch this name.
+EF_ARM_ABIMASK = 0xFF000000
+EF_ARM_ABI_VER5 = 0x05000000
+EF_ARM_ABI_FLOAT_HARD = 0x00000400
 
-DEPRECATION_MSG_PREFIX = "DEPRECATION: "
+_ALLOWED_ARCHS = {
+    "x86_64",
+    "aarch64",
+    "ppc64",
+    "ppc64le",
+    "s390x",
+    "loongarch64",
+    "riscv64",
+}
 
 
-class PipDeprecationWarning(Warning):
+# `os.PathLike` not a generic type until Python 3.9, so sticking with `str`
+# as the type for `path` until then.
+@contextlib.contextmanager
+def _parse_elf(path: str) -> Generator[ELFFile | None, None, None]:
+    try:
+        with open(path, "rb") as f:
+            yield ELFFile(f)
+    except (OSError, TypeError, ValueError):
+        yield None
+
+
+def _is_linux_armhf(executable: str) -> bool:
+    # hard-float ABI can be detected from the ELF header of the running
+    # process
+    # https://static.docs.arm.com/ihi0044/g
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/packaging/_tokenizer.py ---
+from __future__ import annotations
+
+import contextlib
+import re
+from dataclasses import dataclass
+from typing import Generator, Mapping, NoReturn
+
+from .specifiers import Specifier
+
+
+@dataclass
+class Token:
+    name: str
+    text: str
+    position: int
+
+
+class ParserSyntaxError(Exception):
+    """The provided source text could not be parsed correctly."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        source: str,
+        span: tuple[int, int],
+    ) -> None:
+        self.span = span
+        self.message = message
+        self.source = source
+
+        super().__init__()
+
+    def __str__(self) -> str:
+        marker = " " * self.span[0] + "~" * (self.span[1] - self.span[0]) + "^"
+        return f"{self.message}\n    {self.source}\n    {marker}"
+
+
+DEFAULT_RULES: dict[str, re.Pattern[str]] = {
+    "LEFT_PARENTHESIS": re.compile(r"\("),
+    "RIGHT_PARENTHESIS": re.compile(r"\)"),
+    "LEFT_BRACKET": re.compile(r"\["),
+    "RIGHT_BRACKET": re.compile(r"\]"),
+    "S
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/packaging/specifiers.py ---
+# This file is dual licensed under the terms of the Apache License, Version
+# 2.0, and the BSD License. See the LICENSE file in the root of this repository
+# for complete details.
+"""
+.. testsetup::
+
+    from packaging.specifiers import Specifier, SpecifierSet, InvalidSpecifier
+    from packaging.version import Version
+"""
+
+from __future__ import annotations
+
+import abc
+import itertools
+import re
+from typing import Callable, Final, Iterable, Iterator, TypeVar, Union
+
+from .utils import canonicalize_version
+from .version import InvalidVersion, Version
+
+UnparsedVersion = Union[Version, str]
+UnparsedVersionVar = TypeVar("UnparsedVersionVar", bound=UnparsedVersion)
+CallableOperator = Callable[[Version, str], bool]
+
+
+def _coerce_version(version: UnparsedVersion) -> Version | None:
+    if not isinstance(version, Version):
+        try:
+            version = Version(version)
+        except InvalidVersion:
+            return None
+    return version
+
+
+def _public_version(version: Version) -> Ver
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/packaging/_elffile.py ---
+"""
+ELF file parser.
+
+This provides a class ``ELFFile`` that parses an ELF executable in a similar
+interface to ``ZipFile``. Only the read interface is implemented.
+
+ELF header: https://refspecs.linuxfoundation.org/elf/gabi4+/ch4.eheader.html
+"""
+
+from __future__ import annotations
+
+import enum
+import os
+import struct
+from typing import IO
+
+
+class ELFInvalid(ValueError):
     pass
 
 
-_original_showwarning: Any = None
+class EIClass(enum.IntEnum):
+    C32 = 1
+    C64 = 2
 
 
-# Warnings <-> Logging Integration
-def _showwarning(
-    message: Warning | str,
-    category: type[Warning],
-    filename: str,
-    lineno: int,
-    file: TextIO | None = None,
-    line: str | None = None,
-) -> None:
-    if file is not None:
-        if _original_showwarning is not None:
-            _original_showwarning(message, category, filename, lineno, file, line)
-    elif issubclass(category, PipDeprecationWarning):
-        # We use a specially named logger which will handle all of the
-        # deprecation messages for pip.
-        logger = logg
-
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/utils/pylock.py ---
-from collections.abc import Iterable
-from pathlib import Path
-
-from pip._vendor.packaging.pylock import (
-    Package,
-    PackageArchive,
-    PackageDirectory,
-    PackageSdist,
-    PackageVcs,
-    PackageWheel,
-    Pylock,
-)
-from pip._vendor.packaging.version import Version
-
-from pip._internal.models.direct_url import ArchiveInfo, DirInfo, VcsInfo
-from pip._internal.models.link import Link
-from pip._internal.req.req_install import InstallRequirement
-from pip._internal.utils.urls import url_to_path
+class EIData(enum.IntEnum):
+    Lsb = 1
+    Msb = 2
 
 
-def _pylock_package_from_install_requirement(
-    ireq: InstallRequirement, base_dir: Path
-) -> Package:
-    base_dir = base_dir.resolve()
-    dist = ireq.get_dist()
-    download_info = ireq.download_info
-    assert download_info
-    package_version = None
-    package_vcs = None
-    package_directory = None
-    package_archive = None
-    package_sdist = None
-    package_wheels = None
-    if ireq.is_direct:
-        if isinstance(download_info.info, VcsInfo):
-            package_vcs = Packa
+class EMachine(enum.IntEnum):
+    I386 = 3
+    S390 = 22
+    Arm = 40
+    X8664 = 62
+    AArc64 = 183
 
---- FILE: ./test_venv/lib/python3.12/site-packages/pip/_internal/utils/subprocess.py ---
+
+class ELFFile:
+    """
+    Representation of an ELF executable.
+    """
+
+    def __init__(self, f: IO[bytes]) -> None:
+        self._f = f
+
+        try:
+            ident = self._read("16B")
+        except struct.error as e:
+            raise ELFInvalid("unable to parse identification") from e
+        magic = bytes(ident[:4])
+        if magic != b"\x7fELF":
+            raise ELFInvalid(f"invalid mag
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/packaging/licenses/__init__.py ---
+#######################################################################################
+#
+# Adapted from:
+#  https://github.com/pypa/hatch/blob/5352e44/backend/src/hatchling/licenses/parse.py
+#
+# MIT License
+#
+# Copyright (c) 2017-present Ofek Lev <oss@ofek.dev>
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this
+# software and associated documentation files (the "Software"), to deal in the Software
+# without restriction, including without limitation the rights to use, copy, modify,
+# merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so, subject to the following
+# conditions:
+#
+# The above copyright notice and this permission notice shall be included in all copies
+# or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+# INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FIT
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/packaging/licenses/_spdx.py ---
+
 from __future__ import annotations
 
-import logging
-import os
-import shlex
-import subprocess
-from collections.abc import Iterable, Mapping
-from typing import Any, Callable, Literal, Union
+from typing import TypedDict
 
-from pip._vendor.rich.markup import escape
+class SPDXLicense(TypedDict):
+    id: str
+    deprecated: bool
 
-from pip._internal.cli.spinners import SpinnerInterface, open_spinner
-from pip._internal.exceptions import InstallationSubprocessError
-from pip._internal.utils.logging import VERBOSE, subprocess_logger
-from pip._internal.utils.misc import HiddenText
-
-CommandArgs = list[Union[str, HiddenText]]
+class SPDXException(TypedDict):
+    id: str
+    deprecated: bool
 
 
-def make_command(*args: str | HiddenText | CommandArgs) -> CommandArgs:
-    """
-    Create a CommandArgs object.
-    """
-    command_args: CommandArgs = []
-    for arg in args:
-        # Check for list instead of CommandArgs since CommandArgs is
-        # only known during type-checking.
-        if isinstance(arg, list):
-            command_args.extend(arg)
-        else:
-            # Otherwise, arg is str or HiddenText.
-            command_args.append(arg)
+VERSION = '3.27.0'
 
-    retur
+LICENSES: dict[str, SPDXLicense] = {
+    '0bsd': {'id': '0BSD', 'deprecated': False},
+    '3d-slicer-1.0': {'id': '3D-Slicer-1.0', 'deprecated': False},
+    'aal': {'id': 'AAL', 'deprecated': False},
+    'abstyles': {'id': 'Abstyles', 'deprecated': False},
+    'adacore-doc': {'id': 'AdaCore-doc', 'deprecated': False},
+    'adobe-2006': {'id': 'Adobe-2006', 'deprecated': False},
+    'adobe-display-postscript': {'id': 'Adobe-Display-PostScript', 'deprecated': False},
+    'adobe-glyph': {'id': 'Adobe-Glyph', 'deprecated': False},
+    'adobe-utopia': {'id': 'Adobe-Utopia', 'deprecated': False},
+    'adsl': {'id': 'ADSL', 'deprecated': False},
+    'afl-1.1': {'id': 'AFL-1.1', 'deprecated': False},
+    'afl-1.2': {'id': 'AFL-1.2', 'deprecated': False},
+    'afl-2.0': {'id': 'AF
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/uc_micro/__init__.py ---
+from .categories import Cc, Cf, P, Z
+from .properties import Any
+
+__version__ = "1.0.3"
+
+
+--- FILE: ./test_venv/lib/python3.12/site-packages/uc_micro/properties/__init__.py ---
+from .Any import *
+
 
