@@ -8,6 +8,7 @@ from jcapy.utils.updates import check_for_framework_updates, get_update_status, 
 from jcapy.ui.ux.hints import prompt_typo_correction, get_tutorial, JCAPY_COMMANDS
 from jcapy.core.plugins import get_registry
 from jcapy.core.bootstrap import register_core_commands
+from jcapy.ui.menu import terminal_hygiene
 
 # ANSI Colors
 CYAN = '\033[1;36m'
@@ -192,6 +193,7 @@ def main():
         print_help()
 
     except KeyboardInterrupt:
+        terminal_hygiene()
         print(f"\n{RED}Aborted by user.{RESET}")
         sys.exit(0)
     except Exception as e:

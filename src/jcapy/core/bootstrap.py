@@ -47,11 +47,14 @@ def register_core_commands(registry):
     def setup_init(parser):
         parser.add_argument("--grade", choices=["A", "B", "C"], help="Project Grade (Headless)")
 
-    registry.register("init", lambda args: init_project(grade=getattr(args, 'grade', None)),
-                      "Scaffold One-Army Project", setup_parser=setup_init, interactive=True)
+    registry.register("init", lambda args: init_project(
+        grade=getattr(args, 'grade', None),
+        tui_data=getattr(args, 'tui_data', None)
+    ), "Scaffold One-Army Project", setup_parser=setup_init, interactive=True)
 
-    registry.register("deploy", lambda args: deploy_project(),
-                      "Deploy Project", interactive=True)
+    registry.register("deploy", lambda args: deploy_project(
+        tui_data=getattr(args, 'tui_data', None)
+    ), "Deploy Project", interactive=True)
 
     def setup_map(parser):
         parser.add_argument("path", nargs="?", default=".", help="Project path to map")
@@ -86,7 +89,8 @@ def register_core_commands(registry):
         description=getattr(args, 'desc', None),
         grade=getattr(args, 'grade', None),
         confirm=getattr(args, 'yes', False),
-        force=getattr(args, 'force', False)
+        force=getattr(args, 'force', False),
+        tui_data=getattr(args, 'tui_data', None)
     ), "Create a new Skill (Interactive/Headless)", aliases=["new"], setup_parser=setup_harvest, interactive=True)
 
     def setup_search(parser):
@@ -158,8 +162,13 @@ def register_core_commands(registry):
     # 🤖  AI-POWERED
     # ══════════════════════════════════════════
 
-    registry.register("brainstorm", lambda args: run_brainstorm_wizard(),
-                      "AI Refactor & Optimization", aliases=["bs"], interactive=True)
+    from jcapy.commands.brain import brainstorming_handler
+    def setup_brainstorm(parser):
+        parser.add_argument("file", nargs="?", help="Target file to refactor")
+        parser.add_argument("--provider", default="local", help="AI Provider")
+
+    registry.register("brainstorm", brainstorming_handler,
+                      "AI Refactor & Optimization", aliases=["bs"], setup_parser=setup_brainstorm, interactive=True)
 
     registry.register("suggest", run_suggest, "Recommend next best actions")
 

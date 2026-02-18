@@ -18,6 +18,17 @@ Screen {
     transition: background 300ms, border 300ms;
 }
 
+#mode-hud {
+    dock: top;
+    height: 3;
+    content-align: center middle;
+    background: $background;
+    color: $accent;
+    border-bottom: tall $accent 30%;
+    text-style: bold;
+    padding: 0 2;
+}
+
 .glass-card {
     background: $surface 30%;
     border: round $accent 35%;
@@ -43,9 +54,10 @@ Screen {
 /* Sidebar Styling */
 #sidebar {
     width: 30;
+    min-width: 30;
     height: 100%;
     background: $boost 10%;
-    border-right: tall $accent 25%;
+    border-right: none;
     padding: 1 2;
 }
 
@@ -59,24 +71,73 @@ Screen {
     color: $text 60%;
     margin: 1 0;
     text-style: italic;
+    border-bottom: solid $accent 20%;
+    width: 100%;
+}
+
+/* Dual Terminal Layout */
+#terminal-container {
+    height: 100%;
+    width: 100%;
+}
+
+#output-pane {
+    width: 70%;
+    height: 100%;
+    border-right: tall $accent 20%;
+}
+
+#input-pane {
+    width: 30%;
+    height: 100%;
+    background: $surface 15%;
+    padding: 0 1;
+}
+
+.pane-header {
+    padding: 1;
+    background: $accent 15%;
+    color: $accent;
+    content-align: center middle;
+    text-style: bold;
+}
+
+#history-log {
+    height: 1fr;
+    background: transparent;
+    border-bottom: solid $accent 10%;
+    color: $text 70%;
+}
+
+#term-input {
+    height: 3;
+    margin: 1 0;
+    background: $surface 30%;
+    border: tall $accent 30%;
+}
+
+#term-input:focus {
+    border: double $accent;
+    tint: $accent 10%;
 }
 
 /* Dashboard Layout */
 #main-area {
-    layout: grid;
-    grid-size: 3;
-    grid-columns: 1.2fr 2.5fr 1fr;
-    grid-gutter: 2;
+    layout: horizontal;
     padding: 1 2;
+    height: 1fr;
+    overflow-x: auto;
 }
 
 #left-col, #center-col, #right-col {
     background: $surface 35%;
     border: round $accent 20%;
     padding: 1 2;
-    margin: 1;
+    margin: 1 1;
     height: 100%;
+    min-width: 20;
     overflow-y: auto;
+    width: 1fr;
 }
 
 #center-col {
@@ -91,6 +152,12 @@ ClockWidget {
     text-style: bold;
     content-align: center middle;
     margin: 1 0;
+    transition: offset 300ms, color 300ms;
+}
+
+ClockWidget:hover {
+    offset-x: 1;
+    color: $accent-lighten-2;
 }
 
 ProjectStatusWidget {
@@ -98,11 +165,37 @@ ProjectStatusWidget {
     background: $surface 20%;
     padding: 1;
     margin: 1 0;
+    transition: background 400ms, offset 400ms;
 }
 
-UsageTrackerWidget {
-    background: $surface 30%;
-    border: round $accent 25%;
+ProjectStatusWidget:hover {
+    background: $surface 40%;
+    offset-x: 1;
+}
+
+ClockWidget, ProjectStatusWidget, StatusWidget {
+    transition: tint 300ms, background 300ms;
+    min-height: 5;
+}
+
+ClockWidget:focus, ProjectStatusWidget:focus, StatusWidget:focus {
+    tint: $accent 10%;
+    background: $surface 20%;
+}
+
+/* Blueprint Accents for Panes */
+#output-pane, #input-pane {
+    border: tall $accent 15%;
+}
+
+.pane-label {
+    dock: top;
+    height: 1;
+    color: $accent 30%;
+    text-align: right;
+    padding-right: 2;
+    text-style: italic;
+    background: transparent;
 }
 
 /* Kanban */
@@ -141,21 +234,32 @@ UsageTrackerWidget {
     background: $success 15%;
 }
 
-/* Buttons */
+/* Sidebar Glass Buttons */
+#sidebar Button {
+    background: $accent 15%;
+    border: round $accent 30%;
+    color: $text;
+    margin: 1 0;
+    height: 3;
+    transition: background 200ms, border 200ms;
+}
+
+#sidebar Button:hover {
+    background: $accent 35%;
+    border: round $accent 60%;
+}
+
+#sidebar Button.-active {
+    background: $accent;
+    color: $background;
+}
+
+/* Global Buttons */
 Button {
     background: $accent 25%;
     border: tall $accent 40%;
     color: $text;
     transition: background 200ms;
-}
-
-Button:hover {
-    background: $accent 50%;
-}
-
-Button.-active {
-    background: $accent;
-    color: $background;
 }
 
 /* Console Drawer */
@@ -204,4 +308,122 @@ CommandPalette {
     height: auto;
     background: transparent;
     border: none;
+}
+
+/* Widget Action Bars */
+.widget-action-bar {
+    height: 3;
+    dock: bottom;
+    background: $surface 20%;
+    border-top: solid $accent 10%;
+    padding: 0 1;
+    content-align: center middle;
+    transition: background 300ms;
+}
+
+.widget-action-bar Button {
+    margin: 0 1;
+    padding: 0 2;
+    height: 1;
+    min-width: 10;
+    border: none;
+    background: $accent 15%;
+    color: $accent;
+    text-style: bold;
+    transition: background 200ms, offset 200ms;
+}
+
+.widget-action-bar Button:hover {
+    background: $accent 35%;
+    offset-y: -1;
+}
+
+.widget-action-bar Button.-success {
+    background: $success 20%;
+    color: $success;
+}
+
+.widget-action-bar Button.-success:hover {
+    background: $success 40%;
+}
+
+/* AI Agent Widget Styling */
+AIAgentWidget {
+    background: transparent;
+    border: none;
+    padding: 1;
+}
+
+#ai-agent-root {
+    background: transparent;
+}
+
+.ai-card {
+    background: $surface 25%;
+    border-left: solid $accent 35%;
+    margin: 1 0;
+    padding: 0 1;
+    min-height: 3;
+}
+
+.ai-label {
+    margin-top: 1;
+    text-style: bold italic;
+    color: $text 50%;
+}
+
+#ai-thought-text {
+    margin: 0 1;
+    text-style: italic;
+}
+
+#ai-confidence {
+    height: 1;
+    margin: 0 1;
+    background: $accent 10%;
+    color: $accent;
+}
+
+#ai-subagents {
+    margin: 0 1;
+    padding-bottom: 1;
+}
+
+/* Splitter Resizing */
+VerticalSplitter {
+    width: 1;
+    height: 100%;
+    background: $accent 5%;
+    color: $accent 40%;
+    content-align: center middle;
+    transition: background 200ms, color 200ms;
+}
+
+VerticalSplitter:hover {
+    background: $accent 30%;
+    color: $accent;
+}
+
+VerticalSplitter.dragging {
+    background: $accent 50%;
+    color: $accent;
+}
+
+HorizontalSplitter {
+    width: 100%;
+    height: 1;
+    background: $accent 5%;
+    color: $accent 40%;
+    content-align: center middle;
+    transition: background 200ms, color 200ms;
+}
+
+HorizontalSplitter:hover {
+    background: $accent 30%;
+    color: $accent;
+}
+
+HorizontalSplitter.dragging {
+    background: $accent 50%;
+    color: $accent;
 }

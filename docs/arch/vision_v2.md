@@ -41,6 +41,15 @@ Currently, JCapy is a monolithic Python application running in a single process.
 - **Renderer**: Pure rendering logic using `curses` (or a GPU-accelerated library like `ratatui` via Rust bindings for maximum performance).
 - **Input Handler**: Captures keys/mouse and sends commands to the Brain.
 - **Stream Viewer**: Subscribes to log streams from the Brain.
+- **Dynamic Layout Engine**: Manages bidirectional splitters and persistent layout state.
+- **Modal Input Engine**: A NeoVIM-inspired state machine that intercepts key streams to allow the same keyboard real estate to serve multiple "Modes" (Normal, Insert, Visual).
+
+### C. Intelligence Interface (The Pulse)
+A standardized communication layer that exposes internal Brain state to the UI.
+- **AIAgent Monitoring**: Real-time visualization of subagent thoughts and tool cascades.
+- **Usage Telemetry**: Persistent tracking of tokens and costs with sparkline previews.
+- **Multi-Agent Handshakes**: Autonomous collaboration protocols between personas.
+- **Modal State HUD**: Zero-latency visualization of current input mode and command buffers (e.g., "NORMAL", "dw").
 
 ## 3. Technology Stack
 
@@ -50,7 +59,9 @@ Currently, JCapy is a monolithic Python application running in a single process.
 - **State Management**:
   - **SQLite / Redis**: For persistent session state and fast ephemeral caching.
 - **Plugin System**:
-  - **WASM (WebAssembly)**: Safely run plugins written in *any* language (Rust, Go, TS) with near-native speed.
+  - **Dynamic Python Discovery**: Currently implemented via `importlib.util` for hot-loading external widgets.
+  - **Lua Integration**: Future target using `LuaJIT` (via `lupa`) to allow NeoVIM-style configuration of hotkeys and leader-key actions.
+  - **WASM (WebAssembly)**: Security-first plugin isolation for 3rd party extensions.
 
 ## 4. The "One-Army" Advantage
 This architecture empowers a single developer to act like a team:
@@ -123,4 +134,14 @@ What could kill JCapy? Here are the top threats and our architectural defenses.
 2.  **Strangler Fig**: Move one component at a time (first Logging, then Execution, finally Memory) behind the Service Layer.
 3.  **Flip the Switch**: Make `jcapy` command launch the client by default.
 
-This evolution transforms JCapy from a tool into a platform.
+## 9. Appendix: NeoVIM High-Performance Benchmarks
+JCapy 2.0 adopts the NeoVIM architectural standards to achieve "Zero Latency" orchestration.
+
+| Feature | JCapy Target Implementation | Advantage |
+| :--- | :--- | :--- |
+| **Async Core** | Splitter/Worker architecture via Textual `@work`. | Non-blocking UI during heavy repository analysis. |
+| **Modal Grammar** | Verb + Noun command parser (e.g., `dw` = delete widget). | Composable, high-speed UX without mouse dependency. |
+| **Headless Design** | Pure byte-stream output to GPU-accelerated terminals. | Offloads pixel math to `Alacritty`/`Kitty` (1ms-5ms latency). |
+| <Leader> Key | Space-prefixed registry for AI and Sync commands. | Zero-conflict "hotkey real estate" for custom scripts. |
+
+*Last Updated: February 18, 2026*

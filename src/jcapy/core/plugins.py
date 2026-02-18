@@ -16,9 +16,10 @@ from jcapy.core.history import HISTORY_MANAGER
 
 class MockArgs:
     """Lightweight namespace for passing arguments to legacy handlers."""
-    def __init__(self, tokens: list, piped_data: Optional[str] = None):
+    def __init__(self, tokens: list, piped_data: Optional[str] = None, tui_data: Optional[dict] = None):
         self._tokens = tokens
         self.piped_data = piped_data
+        self.tui_data = tui_data
 
     def __getattr__(self, item):
         return None
@@ -153,7 +154,7 @@ class CommandRegistry:
     # Shared Engine: Unified Dispatcher (CLI + TUI)
     # ------------------------------------------------------------------
 
-    def execute_string(self, command_str: str, log_callback: Optional[Callable[[str], None]] = None) -> CommandResult:
+    def execute_string(self, command_str: str, log_callback: Optional[Callable[[str], None]] = None, tui_data: Optional[dict] = None) -> CommandResult:
         """
         Parse a raw command string and execute it via the registry.
         Supports integrated piping via '|'.
@@ -168,7 +169,7 @@ class CommandRegistry:
             piped_data = None
 
             for stage in stages:
-                res = self._execute_single_command(stage, log_callback, piped_data)
+                res = self._execute_single_command(stage, log_callback, piped_data, tui_data)
                 last_result = res
                 if res.status == ResultStatus.FAILURE:
                     break
@@ -177,9 +178,9 @@ class CommandRegistry:
 
             return last_result
 
-        return self._execute_single_command(command_str, log_callback)
+        return self._execute_single_command(command_str, log_callback, tui_data=tui_data)
 
-    def _execute_single_command(self, command_str: str, log_callback: Optional[Callable[[str], None]] = None, piped_data: Optional[str] = None) -> CommandResult:
+    def _execute_single_command(self, command_str: str, log_callback: Optional[Callable[[str], None]] = None, piped_data: Optional[str] = None, tui_data: Optional[dict] = None) -> CommandResult:
         """Internal helper to execute a single (non-piped) command string."""
         parts = shlex.split(command_str)
         if not parts:
@@ -208,15 +209,11 @@ class CommandRegistry:
                 error_code="DISABLED_COMMAND",
             )
 
-        if canonical in self._interactive:
-            return CommandResult(
-                status=ResultStatus.WARNING,
-                message=f"'{base_cmd}' requires interactive input.",
-                error_code="INTERACTIVE_COMMAND",
-            )
+        # Interactive commands are now handled via internal routing or modal screens
+        # so we let them proceed to execution here.
 
         # Prepare arguments (Try parsing if setup_parser exists)
-        mock_args = MockArgs(cmd_args, piped_data=piped_data)
+        mock_args = MockArgs(cmd_args, piped_data=piped_data, tui_data=tui_data)
         setup_parser_func = self._arguments.get(canonical)
         if setup_parser_func:
             import argparse

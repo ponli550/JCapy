@@ -1,7 +1,8 @@
 from textual.app import App, ComposeResult, AwaitMount
-from textual.widgets import Header, Footer, Static, RichLog
-from textual.containers import Container, VerticalScroll
-from textual.screen import Screen
+from textual.widgets import Header, Footer, Static, RichLog, Input
+from textual.reactive import reactive
+from textual.containers import Container, VerticalScroll, Horizontal, Vertical
+from textual.screen import Screen, ModalScreen
 from textual import work
 
 from jcapy.core.plugins import get_registry, MockArgs
@@ -12,12 +13,34 @@ from jcapy.ui.screens.startup import StartupScreen
 from jcapy.ui.widgets.palette import CommandPalette
 from jcapy.ui.messages import ConfigUpdated
 from jcapy.config import CONFIG_MANAGER
-from jcapy.ui.theme import THEMES
+from jcapy.ui.menu import terminal_hygiene
+from jcapy.ui.screens.prompt import TerminalPromptScreen
+from jcapy.ui.modes import InputMode
+from jcapy.ui.grammar import GrammarProcessor, Action
 import shlex
+import time
+from typing import Optional
 
+class ModeHUD(Static):
+    """A visual indicator for the current input mode."""
+    def on_mount(self) -> None:
+        self.watch(self.app, "current_mode", self.update_mode)
 
+    def update_mode(self, mode: InputMode) -> None:
+        # persona = CONFIG_MANAGER.get("current_persona", "programmer")
+        # Since HUD is a widget, we can access app.config or just use global
+        from jcapy.config import CONFIG_MANAGER
+        persona = CONFIG_MANAGER.get("current_persona", "N/A")
+
+        color = "cyan"
+        if mode == InputMode.INSERT: color = "magenta"
+        elif mode == InputMode.VISUAL: color = "yellow"
+        elif mode == InputMode.COMMAND: color = "green"
+        self.update(f"| [bold {color}]{mode.name}[/] | [dim]Persona:[/] [bold cyan]{persona.capitalize()}[/] |")
 class JCapyApp(App):
     """JCapy: The Knowledge Operating System"""
+
+    current_mode = reactive(InputMode.NORMAL)
 
     CSS_PATH = "styles.tcss"
     BINDINGS = [
@@ -33,6 +56,11 @@ class JCapyApp(App):
         ("`", "toggle_console", "Toggle Console"),
     ]
 
+    # Dynamically handled keys (Intercepted in on_key)
+    # i -> switch_mode('insert')
+    # v -> switch_mode('visual')
+    # esc -> switch_mode('normal')
+
     SCREENS = {
         "dashboard": DashboardScreen,
         "management": ManagementScreen,
@@ -41,6 +69,7 @@ class JCapyApp(App):
 
     def __init__(self, start_screen: str = "dashboard", **kwargs):
         self.start_screen = start_screen
+        self.grammar = GrammarProcessor()
         super().__init__(**kwargs)
 
     def switch_screen(self, screen: str | Screen) -> AwaitMount:
@@ -54,17 +83,34 @@ class JCapyApp(App):
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
-        yield Header(show_clock=True)
+        header = Header(show_clock=True)
+        header.tall = True
+        yield header
+        yield ModeHUD(id="mode-hud")
         with Container(id="main-container"):
-            with VerticalScroll(id="terminal-scroll"):
-                yield RichLog(id="terminal-log", highlight=True, markup=True, wrap=True)
+            with Horizontal(id="terminal-container"):
+                # Left Pane: Main Output
+                with Vertical(id="output-pane"):
+                    yield Static("TERMINAL OUTPUT", classes="pane-label")
+                    yield RichLog(id="terminal-log", highlight=True, markup=True, wrap=True)
+
+                # Right Pane: Command Center
+                with Vertical(id="input-pane"):
+                    yield Static("COMMAND CENTER", classes="pane-label")
+                    yield Static("[bold cyan]Command History[/]", classes="pane-header")
+                    yield RichLog(id="history-log", highlight=True, markup=True)
+                    yield Input(placeholder="❯ Enter command...", id="term-input")
         yield Footer()
 
     def on_mount(self) -> None:
         """Called when app starts."""
         # Bind config manager for reactive updates
-        from jcapy.config import CONFIG_MANAGER
+        from jcapy.config import CONFIG_MANAGER, get_ux_preference
         CONFIG_MANAGER.bind_app(self)
+
+        # Apply persistent theme
+        theme = get_ux_preference("theme")
+        self.apply_theme(theme)
 
         # Write welcome message so terminal view isn't blank
         log = self.query_one("#terminal-log", RichLog)
@@ -80,6 +126,9 @@ class JCapyApp(App):
         else:
              # Fast-path: go straight to target
              self.push_screen(target)
+
+        # Auto-focus the terminal input
+        self.query_one("#term-input").focus()
 
     def on_config_updated(self, message: ConfigUpdated) -> None:
         """Handle configuration updates."""
@@ -101,8 +150,14 @@ class JCapyApp(App):
             # Refresh command palette if open?
             # It re-queries registry on open, so just closing/opening is enough.
 
+    def on_descendant_focus(self, event) -> None:
+        """Switch to INSERT mode automatically when an Input gains focus."""
+        if isinstance(event.widget, Input):
+            self.current_mode = InputMode.INSERT
+
     def apply_theme(self, theme_name: str) -> None:
         """Apply a theme by injecting CSS variables."""
+        from jcapy.ui.theme import THEMES
         theme = THEMES.get(theme_name, THEMES["default"])
 
         # Try to set variables directly if supported (Textual 0.38+)
@@ -121,6 +176,91 @@ class JCapyApp(App):
         css_rules.append("}")
         self.stylesheet.add_source("\n".join(css_rules))
         self.refresh_css()
+
+    # ------------------------------------------------------------------
+    # Modal & Cursor Management
+    # ------------------------------------------------------------------
+
+    def watch_current_mode(self, mode: InputMode) -> None:
+        """Update the terminal cursor shape when the mode changes."""
+        self.set_terminal_cursor_shape(mode)
+        # self.notify(f"Mode: [bold cyan]{mode.name}[/]", severity="information", timeout=2)
+
+    def set_terminal_cursor_shape(self, mode: InputMode) -> None:
+        """Emit ANSI DECSUSR sequences to set the terminal cursor shape."""
+        import sys
+        try:
+            if mode == InputMode.INSERT:
+                sys.stdout.write("\x1b[6 q")  # Vertical bar (I-beam)
+            elif mode == InputMode.VISUAL:
+                sys.stdout.write("\x1b[4 q")  # Underline
+            else:
+                sys.stdout.write("\x1b[2 q")  # Block (default)
+            sys.stdout.flush()
+        except Exception:
+            pass  # Fail gracefully if stdout is not a TTY or pipe
+
+    def action_switch_mode(self, mode_name: str) -> None:
+        """Switch the current input mode."""
+        try:
+            self.current_mode = InputMode[mode_name.upper()]
+        except KeyError:
+            pass
+
+    def on_key(self, event) -> None:
+        """Global key interceptor for modal logic."""
+        # 0. Bypass modality if a modal screen is active
+        if isinstance(self.screen, ModalScreen):
+            return
+
+        key = event.key
+
+        # 1. ESC always returns to NORMAL mode
+        if key == "escape":
+            if self.current_mode != InputMode.NORMAL:
+                self.current_mode = InputMode.NORMAL
+                if self.focused:
+                    self.focused.blur()
+                event.stop()
+                return
+
+        # 2. Logic depends on mode
+        if self.current_mode == InputMode.NORMAL:
+            # 2.1 Grammar Processing
+            action = self.grammar.process_key(key)
+            if action:
+                self.execute_grammar_action(action)
+                event.stop()
+                return
+            elif self.grammar.partial_verb:
+                # We are in the middle of a sequence, don't let other handlers trigger
+                event.stop()
+                return
+
+            # Handle modal transitions
+            if key == "i":
+                self.action_switch_mode("insert")
+                # Auto-focus input if on main terminal
+                try:
+                    self.query_one("#term-input").focus()
+                except: pass
+                event.stop()
+            elif key == "v":
+                self.action_switch_mode("visual")
+                event.stop()
+            elif key == ":":
+                self.action_toggle_command_mode()
+                event.stop()
+            # Navigation h/j/k/l (already handle j/k via bindings, but let's be explicit)
+            elif key in ("h", "l"):
+                 # Handle horizontal movement if relevant
+                 pass
+
+        elif self.current_mode == InputMode.INSERT:
+            # In INSERT mode, we let almost everything pass to focused widget.
+            if key == "ctrl+c": # Core exit
+                return
+            pass
 
     # ------------------------------------------------------------------
     # Command Palette Actions
@@ -144,12 +284,35 @@ class JCapyApp(App):
         """Return to dashboard."""
         self.push_screen("dashboard")
 
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle command submission from the persistent input."""
+        if event.input.id == "term-input":
+            command = event.value.strip()
+            if command:
+                self._log_command_to_history(command)
+                self.run_command(command)
+                event.input.value = ""
+
+    def _log_command_to_history(self, command: str) -> None:
+        """Centralized logging for command history across all inputs."""
+        # 1. Main Terminal History
+        try:
+            history = self.query_one("#history-log", RichLog)
+            history.write(f"[dim]❯[/] {command}")
+        except: pass
+
+        # 2. Console Drawer Log (if visible)
+        try:
+            drawer = self.screen.query_one("#dashboard-console")
+            drawer.write(f"\n[bold green]❯ {command}[/]")
+        except: pass
+
     # ------------------------------------------------------------------
     # Shared Engine: Command Execution
     # ------------------------------------------------------------------
 
     @work(thread=True, exit_on_error=False)
-    def run_command(self, command_str: str) -> None:
+    def run_command(self, command_str: str, tui_data: Optional[dict] = None) -> None:
         """Execute a command via the Shared Engine and route the result."""
         # --- Shell Suspension ---
         cmd_clean = command_str.strip().split(" ")[0].lower()
@@ -158,24 +321,74 @@ class JCapyApp(App):
         registry = get_registry()
         canonical = registry._aliases.get(cmd_clean, cmd_clean)
 
-        if canonical in registry._interactive:
-            handler = registry.get_handler(cmd_clean)
-            if handler:
-                parts = shlex.split(command_str)
-                mock_args = MockArgs(parts[1:])
-                with self.suspend():
-                    try:
-                        handler(mock_args)  # Run with mock args
-                    except Exception as e:
-                        print(f"\n❌ Error: {e}")
-                    input("\nPress Enter to return to JCapy Dashboard...")
+        # 0. Check for Internal TUI Routing
+        # Use screens/modals instead of suspending the TTY.
+        if canonical == "harvest" and not tui_data:
+            from jcapy.ui.screens.harvest import HarvestScreen
+            def on_harvest_result(result):
+                if result:
+                     self.run_command("harvest", tui_data=result)
+            self.call_from_thread(self.push_screen, HarvestScreen(), on_harvest_result)
+            return
+
+        if canonical == "init" and not tui_data:
+            def on_init_grade(grade):
+                if grade:
+                     self.run_command("init", tui_data={"grade": grade})
+            self.call_from_thread(self.push_screen, TerminalPromptScreen(
+                prompt="Select Project Grade",
+                choices=["A (Fortress)", "B (Campaign)", "C (Skirmish)"],
+                default="B"
+            ), on_init_grade)
+            return
+
+        if canonical == "deploy" and not tui_data:
+            def on_deploy_choice(choice):
+                if choice:
+                     try:
+                         idx = int(choice.split(")")[0].strip()) - 1
+                         self.run_command("deploy", tui_data={"choice_idx": idx})
+                     except:
+                         self.run_command("deploy", tui_data={"choice_idx": 0})
+
+            self.call_from_thread(self.push_screen, TerminalPromptScreen(
+                prompt="Select Deployment Strategy",
+                choices=["1) Standard (Detected)", "2) Custom (Manual Command)"],
+                default="1"
+            ), on_deploy_choice)
+            return
+
+        if canonical == "brainstorm" and not tui_data:
+            from jcapy.ui.screens.brainstorm_screen import BrainstormScreen
+            def on_brainstorm_result(res):
+                if res:
+                    file, provider = res
+                    # Execute non-interactively
+                    self.run_command(f"brainstorm {file} --provider {provider}", tui_data={"routed": True})
+            self.call_from_thread(self.push_screen, BrainstormScreen(), on_brainstorm_result)
+            return
+
+        if canonical == "persona":
+            parts = shlex.split(command_str)
+            if len(parts) == 1:
+                # persona (no args) -> Route to management screen
+                self.call_from_thread(self.switch_screen, "management")
                 return
 
+        if canonical in ("manage", "tui"):
+            screen = "management" if canonical == "manage" else "dashboard"
+            self.call_from_thread(self.switch_screen, screen)
+            return
+
+        # Catch-all for other interactive commands that aren't natively routed yet
+        if canonical in registry._interactive:
+            # If no flags are provided, warn the user
+            parts = shlex.split(command_str)
+            if len(parts) == 1:
+                self.notify(f"'{canonical}' is interactive. Use flags (e.g. --yes) for best results in TUI.", severity="warning")
+
         if cmd_clean in ("shell", "suspend"):
-            with self.suspend():
-                import subprocess
-                import os
-                subprocess.run([os.environ.get("SHELL", "zsh")])
+            self.notify("Shell suspension is not supported in the unified TUI terminal.", severity="warning")
             return
 
         # Ensure we're on the terminal view
@@ -198,7 +411,7 @@ class JCapyApp(App):
                 pass
 
         registry = get_registry()
-        result: CommandResult = registry.execute_string(command_str, log_callback=streaming_callback)
+        result: CommandResult = registry.execute_string(command_str, log_callback=streaming_callback, tui_data=tui_data)
 
         # --- Shell Fallback ---
         if result.status == ResultStatus.FAILURE and result.error_code == "UNKNOWN_COMMAND":
@@ -362,6 +575,60 @@ class JCapyApp(App):
                 self.query_one("#terminal-scroll").scroll_up(animate=False)
             except Exception:
                 pass
+
+    def execute_grammar_action(self, action: Action) -> None:
+        """Execute a completed grammar sequence on the focused widget."""
+        from textual.widgets import Input, TextArea
+
+        target = self.focused
+        if not target:
+            return
+
+        summary = f"{action.verb} {action.noun}"
+        if action.count > 1: summary += f" x{action.count}"
+        self.notify(f"󰄬 Grammar: [bold cyan]{summary}[/]", severity="information", timeout=2)
+
+        # Implementation of basic actions
+        if action.verb == "delete":
+            if action.noun == "line":
+                if isinstance(target, Input):
+                    target.value = ""
+                elif isinstance(target, TextArea):
+                    # Simple line deletion for TextArea
+                    cursor = target.cursor_location
+                    lines = target.text.splitlines()
+                    if 0 <= cursor[0] < len(lines):
+                        lines.pop(cursor[0])
+                        target.text = "\n".join(lines)
+            elif action.noun == "word":
+                if isinstance(target, Input):
+                    # Basic word deletion (forward)
+                    val = target.value
+                    pos = target.cursor_position
+                    import re
+                    match = re.search(r'\w+\s*', val[pos:])
+                    if match:
+                        target.value = val[:pos] + val[pos + match.end():]
+
+        elif action.verb == "change":
+            if action.noun == "line":
+                 if isinstance(target, Input):
+                     target.value = ""
+                     self.action_switch_mode("insert")
+            elif action.noun == "word":
+                 if isinstance(target, Input):
+                      # Delete word and go to insert
+                      val = target.value
+                      pos = target.cursor_position
+                      import re
+                      match = re.search(r'\w+\s*', val[pos:])
+                      if match:
+                          target.value = val[:pos] + val[pos + match.end():]
+                          self.action_switch_mode("insert")
+
+        elif action.verb == "paste":
+             # Placeholder for clipboard integration
+             self.notify("Paste not yet implemented in Terminal core", severity="warning")
 
 
 if __name__ == "__main__":

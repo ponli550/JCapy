@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any
 from textual.widgets import Static, Button, TextArea, ListView, ListItem, Label, DirectoryTree, RichLog
+from textual import work
 from jcapy.ui.widgets.kinetic_input import KineticInput
 from textual.widget import Widget
 from textual.containers import Vertical, Horizontal, Grid, Container
@@ -14,6 +15,7 @@ import os
 import subprocess
 from jcapy.config import CONFIG_MANAGER
 from jcapy.ui.messages import ConfigUpdated
+from jcapy.ui.widgets.ai_agent import AIAgentWidget
 
 # ==========================================
 # WIDGET REGISTRY
@@ -47,6 +49,32 @@ class WidgetRegistry:
     def get_all_metadata(cls):
         return cls._metadata
 
+    @classmethod
+    def discover_external_widgets(cls):
+        """Dynamically find and register widgets from external directory."""
+        from jcapy.config import CONFIG_MANAGER
+        import importlib.util
+        import sys
+
+        ext_path = CONFIG_MANAGER.get("ux.external_widgets_path")
+        if not ext_path or not os.path.exists(ext_path):
+            return
+
+        for filename in os.listdir(ext_path):
+            if filename.endswith(".py") and not filename.startswith("__"):
+                module_name = f"jcapy.external.{filename[:-3]}"
+                spec = importlib.util.spec_from_file_location(module_name, os.path.join(ext_path, filename))
+                if spec and spec.loader:
+                    module = importlib.util.module_from_spec(spec)
+                    sys.modules[module_name] = module
+                    try:
+                        spec.loader.exec_module(module)
+                        # Expecting a register_widget() function in the module
+                        if hasattr(module, "register_widget"):
+                            module.register_widget(cls)
+                    except Exception as e:
+                        print(f"Failed to load external widget {filename}: {e}")
+
 class ClockWidget(Static):
     """Displays current time (Local/UTC)."""
     def on_mount(self) -> None:
@@ -61,7 +89,7 @@ class ClockWidget(Static):
     def update_clock(self) -> None:
         now = datetime.now()
         utc = datetime.utcnow()
-        time_str = f"[bold cyan] {now.strftime('%H:%M:%S')}[/]\n [dim]UTC {utc.strftime('%H:%M')}[/]"
+        time_str = f"[bold cyan]󱑎 {now.strftime('%H:%M:%S')}[/] [dim]LCL[/]\n[dim]󱑎 {utc.strftime('%H:%M')} UTC[/]"
         self.update(time_str)
 
 class KanbanTask(ListItem):
@@ -97,6 +125,7 @@ class KanbanWidget(Widget, can_focus=True):
         Binding("right,l", "focus_right", "Focus Right", show=False),
         Binding("enter", "move_task_next", "Move Next", show=False),
         Binding("space", "move_task_done", "Move to Done"),
+        Binding("a", "archive_done", "Archive Done"),
     ]
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
@@ -121,6 +150,9 @@ class KanbanWidget(Widget, can_focus=True):
                 id="col-done", classes="kanban-col"
             )
         )
+        with Horizontal(classes="widget-action-bar"):
+            yield Button("📦 Archive Done", variant="primary", id="btn-kanban-archive")
+            yield Button("➕ New Task", variant="default", id="btn-kanban-new")
 
     def on_mount(self) -> None:
         self.highlighted = False
@@ -217,6 +249,32 @@ class KanbanWidget(Widget, can_focus=True):
             else: new_lines.append(line)
         with open(task_file, "w") as f: f.writelines(new_lines)
 
+    def action_archive_done(self) -> None:
+        self.archive_done_tasks()
+
+    def archive_done_tasks(self) -> None:
+        task_file = "/Users/irfanali/.gemini/antigravity/brain/41e0cc09-b343-4215-b7f5-16b292e29d81/task.md"
+        if not os.path.exists(task_file): return
+        with open(task_file, "r") as f: lines = f.readlines()
+        new_lines = []
+        archived_count = 0
+        for line in lines:
+            if line.strip().startswith("- [x]"):
+                archived_count += 1
+                continue # Skip/Archive
+            new_lines.append(line)
+
+        if archived_count > 0:
+            with open(task_file, "w") as f: f.writelines(new_lines)
+            self.app.notify(f"Archived {archived_count} tasks!")
+            self.update_board()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-kanban-archive":
+            self.archive_done_tasks()
+        elif event.button.id == "btn-kanban-new":
+            self.app.run_command("jcapy task add")
+
 class ProjectStatusWidget(Static):
     """Current Project Info."""
     def on_mount(self) -> None:
@@ -228,6 +286,11 @@ class ProjectStatusWidget(Static):
         self.update_status()
 
     def update_status(self) -> None:
+        self.update("[dim]Loading Status...[/]")
+        self.fetch_git_info()
+
+    @work(thread=True)
+    def fetch_git_info(self) -> None:
         cwd = os.getcwd()
         project_name = os.path.basename(cwd)
         try:
@@ -237,7 +300,7 @@ class ProjectStatusWidget(Static):
                 ab = subprocess.check_output(["git", "rev-list", "--left-right", "--count", "HEAD...@{u}"], stderr=subprocess.DEVNULL).decode().strip().split()
                 ahead = ab[0] if ab else "0"
                 behind = ab[1] if len(ab) > 1 else "0"
-                git_meta = f" [cyan]↑{ahead}[/] [magenta]↓{behind}[/]"
+                git_meta = f" [cyan]󰊢 {ahead}[/] [magenta]󰊢 {behind}[/]"
             except:
                 git_meta = ""
 
@@ -245,7 +308,7 @@ class ProjectStatusWidget(Static):
             status_out = subprocess.check_output(["git", "status", "--porcelain"], stderr=subprocess.DEVNULL).decode()
             change_count = len(status_out.splitlines())
             if change_count > 0:
-                git_meta += f" [yellow]∆{change_count}[/]"
+                git_meta += f" [yellow]󰄬{change_count}[/]"
 
         except:
             branch = "Not a git repo"
@@ -255,10 +318,10 @@ class ProjectStatusWidget(Static):
         home = os.path.expanduser('~')
         display_path = cwd.replace(home, "~") if cwd.startswith(home) else cwd
 
-        content = f"\n[bold cyan] {project_name.upper()}[/]\n"
+        content = f"\n[bold cyan]📂 {project_name.upper()}[/]\n"
         content += f"[dim] {branch}[/]{git_meta}\n"
-        content += f"[dim]󱂵 {display_path}[/]"
-        self.update(content)
+        content += f"[dim]📍 {display_path}[/]"
+        self.app.call_from_thread(self.update, content)
 
 class MarketplaceItem(ListItem):
     """An installable skill/widget item."""
@@ -329,6 +392,20 @@ class FileExplorerWidget(Static, can_focus=True):
 
     def compose(self) -> ComposeResult:
         yield DirectoryTree("./", id="explorer-tree")
+        with Horizontal(classes="widget-action-bar"):
+            yield Button("💻 Terminal", variant="default", id="btn-open-terminal")
+            yield Button("🔍 Find", variant="primary", id="btn-find-files")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-open-terminal":
+            tree = self.query_one(DirectoryTree)
+            path = str(tree.cursor_node.data.path) if tree.cursor_node else "./"
+            if os.path.isfile(path): path = os.path.dirname(path)
+            self.app.notify(f"Opening terminal in {path}")
+            # Logic to open console drawer specialized to path could go here
+            self.app.run_command(f"cd {path}")
+        elif event.button.id == "btn-find-files":
+            self.app.run_command("jcapy search")
 
     def on_mount(self) -> None:
         self.highlighted = False
@@ -376,26 +453,16 @@ class ConsoleDrawer(Container):
         if not cmd_text:
             return
 
-        # Log the command
-        log = self.query_one(RichLog)
-        log.write(f"[bold cyan]> {cmd_text}[/]")
-
-        # Execute (Basic delegating to app or registry)
-        # Note: In a real app, we'd fire a 'RunCommand' message
-        # For this refactor, we'll try to use the existing command palette logic
-        # or simple subprocess if it's a shell command
-        if cmd_text.startswith(":"):
-             # It's already in palette format, just trigger palette?
-             # Or we can handle it here.
-             pass
-
-        # Clear input
+        # Clear input early
         inp = self.query_one(KineticInput)
         inp.value = ""
         inp.refresh_history()
 
-        # Dispatch to app's execution logic if available
+        # Execute through App engine
         if hasattr(self.app, "run_command"):
+             # The app will handle logging to both terminal and this drawer
+             if hasattr(self.app, "_log_command_to_history"):
+                 self.app._log_command_to_history(cmd_text)
              self.app.run_command(cmd_text)
 
     def write(self, message: str) -> None: self.query_one(RichLog).write(message)
@@ -415,15 +482,55 @@ class GitLogWidget(Static):
         self.refresh_content()
 
     def refresh_content(self):
+        self.update(Panel("[dim]Fetching Log...[/]", title="📜 Recent Activity"))
+        self.fetch_log()
+
+    @work(thread=True)
+    def fetch_log(self) -> None:
         try:
             log = subprocess.check_output(["git", "log", "-n", "10", "--pretty=format:%h - %s (%cr)"], stderr=subprocess.DEVNULL).decode().strip()
         except: log = "No git history found."
         import re
         log = re.sub(r"^([a-f0-9]+)", r"[yellow]\1[/]", log, flags=re.MULTILINE)
         border = "green" if getattr(self, "highlighted", False) else "white"
-        self.update(Panel(log, title="📜 Recent Activity", border_style=border))
+
+        # Action Bar for Git
+        self.app.call_from_thread(self.update, Panel(log, title="📜 Recent Activity", border_style=border))
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Static(id="git-log-content")
+            with Horizontal(classes="widget-action-bar"):
+                 yield Button("🚀 Push", variant="success", id="btn-git-push")
+                 yield Button("🔄 Sync", variant="primary", id="btn-git-sync")
+
+    def update_content(self):
+        self.query_one("#git-log-content").update(Panel("[dim]Loading...[/]", title="📜 Recent Activity"))
+        self.fetch_log_content()
+
+    @work(thread=True)
+    def fetch_log_content(self) -> None:
+        try:
+            log = subprocess.check_output(["git", "log", "-n", "10", "--pretty=format:%h - %s (%cr)"], stderr=subprocess.DEVNULL).decode().strip()
+        except: log = "No git history found."
+        import re
+        log = re.sub(r"^([a-f0-9]+)", r"[yellow]\1[/]", log, flags=re.MULTILINE)
+        border = "green" if getattr(self, "highlighted", False) else "white"
+        self.app.call_from_thread(self.query_one("#git-log-content").update, Panel(log, title="📜 Recent Activity", border_style=border))
+
+    def on_mount(self) -> None:
+        self.highlighted = False
+        self.update_content()
         self.styles.overflow_y = "auto"
         self.styles.height = "100%"
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-git-push":
+            self.app.notify("Pushing to remote...")
+            self.app.run_command("git push")
+        elif event.button.id == "btn-git-sync":
+            self.app.notify("Syncing changes...")
+            self.app.run_command("jcapy sync")
 
 class NewsWidget(Static):
     """Tech News Ticker."""
@@ -460,38 +567,65 @@ class UsageTrackerWidget(Static):
         self.refresh_content()
 
     def refresh_content(self):
-        in_toks = CONFIG_MANAGER.get("usage.input", 0)
-        out_toks = CONFIG_MANAGER.get("usage.output", 0)
-        cost = CONFIG_MANAGER.get("usage.cost", 0.0)
+        from jcapy.utils.usage import USAGE_LOG_MANAGER
+        summary = USAGE_LOG_MANAGER.get_session_summary()
+        total_summary = USAGE_LOG_MANAGER.get_total_summary()
 
-        # Soft budget warning (e.g. $1.00)
+        in_toks = summary["input_tokens"]
+        out_toks = summary["output_tokens"]
+        cost = summary["cost"]
+
+        session_limit = CONFIG_MANAGER.get("usage.session_limit", 5.0)
+
+        # Sparkline simulation (using historical data if possible, mock for now)
+        spark_data = [2, 5, 3, 8, 4, 9, 7, 12, 10, 15]
+        bars = " ▂▃▄▅▆▇█"
+        sparkline = "".join(bars[min(len(bars)-1, d // 2)] for d in spark_data)
+
+        # Budget Warning
         warning_style = ""
-        if cost > 1.0:
-            warning_style = " [bold red]! BUDGET ALERT[/]"
-        elif cost > 0.5:
-             warning_style = " [bold yellow]! BUDGET LIMIT[/]"
+        if cost >= session_limit: warning_style = " [bold red]! OVER BUDGET[/]"
+        elif cost >= (session_limit * 0.8): warning_style = " [bold yellow]! NEAR LIMIT[/]"
 
-        # Build a more premium panel
         content = Text()
         content.append("\n  ", style="bold magenta")
-        content.append("AI CONSUMPTION" + warning_style + "\n\n", style="bold white")
+        content.append("AI CONSUMPTION" + warning_style + "\n", style="bold white")
+        content.append(f"  {sparkline}\n\n", style="cyan")
 
-        # Input
+        # Session Metrics
+        content.append("  [SESSION]\n", style="dim italic")
         content.append("  IN  ", style="dim white")
         content.append(f"{in_toks:>8,}", style="bold cyan")
         content.append(" toks\n", style="dim")
-
-        # Output
         content.append("  OUT ", style="dim white")
         content.append(f"{out_toks:>8,}", style="bold green")
         content.append(" toks\n", style="dim")
 
         content.append("\n  ------------------\n", style="dim")
-        content.append("  TOTAL COST: ", style="dim white")
-        content.append(f" ${cost:,.4f}", style="bold yellow")
+        content.append("  COST:     ", style="dim white")
+        content.append(f"${cost:>8.4f}", style="bold yellow")
+        content.append("\n  LIMIT:    ", style="dim white")
+        content.append(f"${session_limit:>8.2f}", style="dim")
 
-        border = "green" if getattr(self, "highlighted", False) else "blue"
-        self.update(Panel(content, title="Budget", border_style=border))
+        content.append("\n\n  [LIFETIME]\n", style="dim italic")
+        content.append("  TOTAL:    ", style="dim white")
+        content.append(f"${total_summary['cost']:>8.2f}", style="bold magenta")
+
+        border = "red" if cost >= session_limit else ("yellow" if cost >= session_limit*0.8 else "blue")
+        if getattr(self, "highlighted", False): border = "green"
+
+        self.update(Panel(content, title="Real-time Budget", border_style=border))
+
+    def on_click(self) -> None:
+        """Launch BudgetScreen on click."""
+        from jcapy.ui.screens.budget_screen import BudgetScreen
+
+        def handle_save(result):
+            if result:
+                self.refresh_content()
+                self.app.notify("Budget rules updated successfully!", severity="information")
+
+        self.app.push_screen(BudgetScreen(), handle_save)
 
     def on_config_updated(self, message: ConfigUpdated) -> None:
         """Refresh if usage keys change."""
@@ -567,11 +701,10 @@ class StatusWidget(Static):
         self.update_render()
 
     def update_render(self):
-        import time
         from jcapy.config import CONFIG_MANAGER
-        t = time.strftime("%H:%M:%S")
         persona = CONFIG_MANAGER.get("core.persona", "developer").capitalize()
-        self.update(f"{self.status}  [dim]|[/] 👤 [bold cyan]{persona}[/]  [dim]| Sync: {t}[/dim]")
+        # Identity focused HUD component
+        self.update(f"{self.status}  [dim]|[/] 👤 [bold cyan]{persona}[/]")
 
 # ==========================================
 # WIDGET REGISTRATION
@@ -588,3 +721,7 @@ WidgetRegistry.register("UsageTracker", UsageTrackerWidget, "Session Token Usage
 WidgetRegistry.register("Scratchpad", ScratchpadWidget, "Persistent Notes Area", "flexible", "Core")
 WidgetRegistry.register("FileExplorer", FileExplorerWidget, "Interactive Project Browser", "flexible", "Dev Tools")
 WidgetRegistry.register("ConsoleDrawer", ConsoleDrawer, "Slide-up System Logs", "flexible", "System")
+WidgetRegistry.register("AIAgent", AIAgentWidget, "Real-time AI thought & orchestration pulse", "small", "Systems")
+
+# Initial discovery of external extensions
+WidgetRegistry.discover_external_widgets()

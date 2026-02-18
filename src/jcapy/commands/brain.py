@@ -8,8 +8,7 @@ from jcapy.config import (
     load_config, save_config, get_api_key,
     JCAPY_HOME, DEFAULT_LIBRARY_PATH, BASE_DIR, LOGO_PATH
 )
-from jcapy.ui.menu import interactive_menu
-# from jcapy.ui.tui import run as run_tui # We import this inside functions to avoid circular issues or early curses init
+from jcapy.ui.menu import interactive_menu, terminal_hygiene
 
 # ANSI Colors
 CYAN = '\033[1;36m'
@@ -194,10 +193,12 @@ def select_persona(name=None):
         elif char_code in ['s', 'S']:
              from jcapy.commands.sync import sync_all_personas
              sync_all_personas()
+             terminal_hygiene()
              input("Press Enter to continue...")
              continue # Refresh menu
         elif char_code in ['p', 'P']:
              push_all_personas()
+             terminal_hygiene()
              input("Press Enter to continue...")
              continue # Refresh menu
         else:
@@ -235,9 +236,10 @@ def select_persona(name=None):
 
     print(f"{YELLOW}User identified: {persona_key.upper()}{RESET}")
 
-    # Transition to TUI directly
-    from jcapy.ui.tui import run as run_tui
-    run_tui(lib_path)
+    # Transition: Config is saved, we just return.
+    # If called from CLI, it exits. If called from TUI, it returns to the app flow.
+    # NO: from jcapy.ui.tui import run as run_tui
+    # NO: run_tui(lib_path)
 
 def manage_personas_menu():
     """Menu to manage (Rename, Lock, Delete) personas"""
@@ -265,6 +267,7 @@ def manage_personas_menu():
 
 def add_persona():
     print(f"\n{MAGENTA}➕ Create New Persona{RESET}")
+    terminal_hygiene()
     name = input(f"{CYAN}? Persona Name (give it any name): {RESET}").strip().lower()
     if not name: return
 
@@ -326,6 +329,7 @@ def rename_persona():
         time.sleep(1)
         return
 
+    terminal_hygiene()
     new_name = input(f"{CYAN}? New Name for '{old_name}': {RESET}").strip().lower()
     if not new_name: return
     new_name = re.sub(r'[^a-z0-9_]', '', new_name)
@@ -424,6 +428,7 @@ def delete_persona():
 
     print(f"\n{RED}⚠️  WARNING: You are about to delete '{p_name}'.{RESET}")
     print(f"{RED}This will PERMANENTLY delete all persona data and its library files!{RESET}")
+    terminal_hygiene()
     confirm = input(f"{YELLOW}? Type '{p_name}' to confirm deletion: {RESET}").strip()
 
     if confirm == p_name:
@@ -451,6 +456,7 @@ def delete_persona():
 def setup_initial_persona():
     """First-time setup: Ask for user name and create admin persona."""
     print(f"\n{CYAN}Who is operating right now?{RESET}")
+    terminal_hygiene()
     name = input(f"Enter your name (e.g. 'Irfan'): ").strip()
 
     if not name:
@@ -495,6 +501,7 @@ def ensure_operator_identity():
 
     # Security Prompt
     print(f"\n{CYAN}Who is operating right now?{RESET}")
+    terminal_hygiene()
     name = input(f"Enter your name (e.g. 'Irfan'): ").strip()
 
     if not name:
@@ -529,6 +536,7 @@ def check_api_keys():
         print(f"  • {p.capitalize()}: {status}")
 
         if not key_val:
+            terminal_hygiene()
             val = input(f"    {CYAN}Enter {p.capitalize()} Key (or leave blank to skip): {RESET}").strip()
             if val:
                 # Save to config (Securely)
@@ -593,8 +601,24 @@ def brainstorm_skill(target_path, provider="local"):
         print(f"{RED}API Integration not yet fully hydrated. Switching to Local Dump.{RESET}")
         brainstorm_skill(target_path, "local")
 
-def run_brainstorm_wizard():
+def brainstorming_handler(args):
+    """Router for brainstorm command."""
+    target = getattr(args, 'file', None)
+    provider = getattr(args, 'provider', 'local')
+
+    if target:
+        # Non-interactive mode (called from TUI or CLI with args)
+        brainstorm_skill(target, provider)
+    else:
+        # Interactive mode
+        run_brainstorm_wizard(tui_data=getattr(args, 'tui_data', None))
+
+def run_brainstorm_wizard(tui_data=None):
     """Interactive Wizard for jcapy Brainstorm."""
+    if tui_data and tui_data.get("routed"):
+        # Already handled by TUI screen redirection
+        return
+
     print(f"\n{MAGENTA}🧠 jcapy Brainstorm (AI Refactor){RESET}")
 
     # 1. Select Target (Simple: Current Directory's files)

@@ -10,6 +10,7 @@ This directory contains design documents, implementation plans, and status repor
 ### Design Documents
 - **[Hybrid Architecture Design](./2026-02-16-hybrid-architecture-design.md)** - TUI/CLI unified command system
 - **[Interactive Mission Control](./2026-02-16-interactive-mission-control.md)** - Dashboard interactivity features
+- **[Widget System Furnishing](./2026-02-18-widget-furnishing.md)** - Telemetry, interactivity, and extensibility
 
 ### Roadmaps
 - **[Phase 4: Scale](./phase_4_scale.md)** - Future scaling and enterprise features
@@ -22,14 +23,16 @@ This directory contains design documents, implementation plans, and status repor
 - ✅ Hybrid TUI/CLI Architecture
 - ✅ Interactive Mission Control (Kanban, File Explorer, Marketplace, Console)
 - ✅ Zen Mode Layout (High-density sidebar design)
-- ✅ Marketplace Expansion (Plugin system for widgets + commands)
+- ✅ Bidirectional Resizable Dashboard (Dynamic splitters with persistence)
+- ✅ Furnished Widget System (Action bars, AI Pulse, Cinematic transitions)
+- ✅ Marketplace Expansion (Dynamic hot-loading from `~/.jcapy/widgets`)
 
 **Next Steps**:
 - Remote Marketplace catalog
-- Widget hot-reload
+- Remote Marketplace catalog
 - Plugin sandboxing
 - Multi-dashboard support
 
 ---
 
-*Last Updated: February 16, 2026*
+*Last Updated: February 18, 2026*

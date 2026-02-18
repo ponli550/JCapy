@@ -10,6 +10,25 @@ GREY = '\033[0;90m'
 WHITE = '\033[1;37m'
 RESET = '\033[0m'
 
+def terminal_hygiene():
+    """Disables mouse tracking and ensures terminal is in a clean state for input()."""
+    # ANSI escape codes to disable various mouse tracking modes
+    # \x1b[?1000l: Disable X11 mouse tracking
+    # \x1b[?1002l: Disable cell motion mouse tracking
+    # \x1b[?1003l: Disable all motion mouse tracking
+    # \x1b[?1006l: Disable SGR mouse mode
+    # \x1b[?1015l: Disable URXVT mouse mode
+    # \x1b[?1049l: Exit alternate screen (safety)
+    # \x1b[m: Reset all attributes
+    sys.stdout.write("\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1015l\x1b[m")
+    sys.stdout.flush()
+    # Attempt to clear any pending input in the buffer to avoid noise
+    try:
+        import termios
+        termios.tcflush(sys.stdin, termios.TCIFLUSH)
+    except:
+        pass
+
 def get_key():
     """Captures a single keypress, handling arrow key escape sequences."""
     fd = sys.stdin.fileno()

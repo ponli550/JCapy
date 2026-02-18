@@ -37,11 +37,8 @@ def run_tutorial(args):
         tutorial.reset()
         show_success("Tutorial progress reset")
     else:
-        try:
-            from jcapy.ui.animations import cinematic_intro, should_animate
-            if should_animate():
-                cinematic_intro()
-        except ImportError: pass
+        # Launch Tutorial logic
+        # JCapyApp now handles the cinematic intro if enabled
         tutorial.run_interactive()
 
 def run_suggest(args):
@@ -68,20 +65,14 @@ def run_suggest(args):
     console.print(f"  • [green]jcapy doctor[/green]: Verify system health.")
 
 def run_tui(args=None, start_screen="dashboard"):
-    # If args is a namespace (from argparse), check if it has start_screen
+    """Launch the modern JCapy Dashboard (Textual)."""
     if args and hasattr(args, 'screen'):
         start_screen = args.screen
 
-    # We are switching to the Textual App (App.py) as the primary TUI
-    # The old curses TUI is in jcapy.ui.tui.run
-
-    # Try to launch Textual App first
     try:
+        import threading
         from jcapy.ui.app import JCapyApp
         app = JCapyApp(start_screen=start_screen)
-        app.run()
+        app.run(signals=threading.current_thread() is threading.main_thread())
     except Exception as e:
-        # Fallback or error logging
-        print(f"Error launching TUI: {e}")
-        # import traceback
-        # traceback.print_exc()
+        print(f"Error launching Dashboard: {e}")

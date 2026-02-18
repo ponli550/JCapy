@@ -7,7 +7,7 @@ from textual.binding import Binding
 from textual.events import Click
 from textual.reactive import reactive
 import uuid
-from jcapy.config import get_dashboard_layout, set_dashboard_layout
+from jcapy.config import get_dashboard_layout, set_dashboard_layout, get_dashboard_dimensions, set_dashboard_dimensions
 from jcapy.ui.messages import ConfigUpdated
 from jcapy.ui.widgets.dashboard_widgets import (
     ClockWidget,
@@ -22,6 +22,7 @@ from jcapy.ui.widgets.dashboard_widgets import (
     StatusWidget,
     WidgetRegistry
 )
+from jcapy.ui.widgets.splitter import VerticalSplitter, HorizontalSplitter, SplitterUpdated
 
 JCAPY_LOGO_COMPACT = """
  [bold cyan]JCapy[/] [dim]v2.0[/]
@@ -53,7 +54,6 @@ class DashboardScreen(Screen):
         Binding("k,up", "focus_up", "Focus Up", show=False),
         Binding("z", "toggle_zen_mode", "Zen Mode"),
     ]
-
     CSS = """
     DashboardScreen.edit-mode-active {
         background: #0a192f;
@@ -61,69 +61,95 @@ class DashboardScreen(Screen):
 
     DashboardScreen.zen-mode-active #sidebar,
     DashboardScreen.zen-mode-active #left-col,
-    DashboardScreen.zen-mode-active #right-col {
+    DashboardScreen.zen-mode-active #right-col,
+    DashboardScreen.zen-mode-active VerticalSplitter {
         display: none;
     }
 
     DashboardScreen.zen-mode-active #main-area {
-        grid-size: 1;
-        grid-columns: 1fr;
         padding: 0;
     }
 
     DashboardScreen.zen-mode-active #center-col {
         border: none;
         background: transparent;
+        width: 100%;
+        margin: 0;
     }
 
     #sidebar {
-        width: 26;
+        width: 30;
         height: 100%;
-        background: $boost 10%;
-        border-right: tall $accent 20%;
-        padding: 1;
+        background: $boost 8%;
+        border-right: tall $accent 15%;
+        padding: 1 2;
         dock: left;
+        transition: width 150ms; /* Adds smooth dragging effect */
     }
 
-    #main-area {
-        layout: grid;
-        grid-size: 3;
-        grid-columns: 1.2fr 2.5fr 1fr;
-        grid-gutter: 2;
-        padding: 1 2;
+    #sidebar-spacer {
         height: 1fr;
     }
 
-    #main-area.right-collapsed {
-        grid-columns: 1.2fr 2.5fr 5;
+    #main-area {
+        layout: horizontal;
+        height: 100%;
+        padding: 1 0; /* Remove horizontal padding to let columns flush */
+        align-vertical: middle;
     }
 
+    /* Column Layouts - Optimized for Flex/Splitter compatibility */
     #left-col, #center-col, #right-col {
         background: $surface 40%;
         border: round $accent 30%;
-        padding: 1 2;
-        margin: 1;
+        padding: 1 1;
+        margin: 0; /* Remove margins to allow splitters to sit flush */
         height: 100%;
         overflow-y: auto;
     }
 
-    /* Glass Zones */
     #left-col {
+        width: 25%;
+        min-width: 25;
         background: $surface 45%;
     }
+
     #center-col {
+        width: 1fr;
+        min-width: 45;
         background: $surface 35%;
         border: tall $accent 20%;
     }
+
     #right-col {
+        width: 22%;
+        min-width: 25;
         background: $surface 45%;
     }
 
     #right-col.collapsed {
         width: 5;
+        min-width: 5;
         overflow: hidden;
         border-right: none;
         background: $boost 30%;
+        padding: 1 0;
+    }
+
+    /* Ensure Splitters are visible and interactive */
+    VerticalSplitter {
+        width: 1;
+        background: $surface;
+        color: $accent 50%;
+        height: 100%;
+    }
+
+    HorizontalSplitter {
+        height: 1;
+        background: $surface;
+        color: $accent 50%;
+        width: 100%;
+        margin: 1 0;
     }
 
     .selected-widget {
@@ -139,14 +165,18 @@ class DashboardScreen(Screen):
     }
 
     .nav-header {
-        color: $text 50%;
+        color: $text 40%;
         margin: 1 0;
+        text-style: italic bold;
+        border-top: solid $accent 10%;
+        padding-top: 1;
+        width: 100%;
+        text-align: center;
     }
 
     #btn-manage {
         margin-top: 1;
         background: $accent 20%;
-        border: none;
     }
 
     #sidebar Button:hover {
@@ -187,51 +217,101 @@ class DashboardScreen(Screen):
 
     def compose(self) -> ComposeResult:
         layout = get_dashboard_layout()
+        dimensions = get_dashboard_dimensions()
 
-        # Sidebar (Logo + Context)
-        with Vertical(id="sidebar"):
-            yield Static(JCAPY_LOGO_COMPACT, classes="logo")
-            yield StatusWidget()
-            yield Static("⎯⎯⎯⎯⎯⎯ [dim]Navigation[/] ⎯⎯⎯⎯⎯⎯", classes="nav-header")
-            # We don't use dynamic layout for sidebar yet, keeping it as a steady anchor
-            yield ClockWidget()
-            yield ProjectStatusWidget()
+        with Horizontal(id="dashboard-root"):
+            # Sidebar (Logo + Context)
+            sidebar = Vertical(id="sidebar")
+            if "sidebar" in dimensions:
+                sidebar.styles.width = dimensions["sidebar"]
 
-            # Static Controls (moved to sidebar bottom)
-            yield Static("\n" * 1)
-            yield Button("⚙️  Manage", id="btn-manage", variant="default")
-            yield Button("🔍 Find", id="btn-find", variant="primary")
-            yield Button("🚪 Quit", id="btn-quit", variant="error")
+            with sidebar:
+                yield Static(JCAPY_LOGO_COMPACT, classes="logo")
+                yield StatusWidget()
+                yield ClockWidget()
+                yield ProjectStatusWidget()
 
-        # Main Workspace
-        with Grid(id="main-area"):
-            # Left Column (FileExplorer, etc)
-            with Vertical(id="left-col"):
-                for w_name in layout.get("left_col", []):
-                    # Filter out widgets moved to sidebar to avoid duplication
-                    if w_name not in ["Clock", "ProjectStatus"]:
-                        yield self._create_widget(w_name)
+                # Pushes everything below to the bottom
+                yield Static("", id="sidebar-spacer")
 
-            # Center Column (Kanban)
-            with Vertical(id="center-col"):
-                for w_name in layout.get("center_col", []):
-                    yield self._create_widget(w_name)
+                yield Label("Navigation", classes="nav-header")
 
-            # Right Column (Marketplace, Usage, etc)
-            with Vertical(id="right-col"):
-                for w_name in layout.get("right_col", []):
-                    yield self._create_widget(w_name)
+                # Static Controls
+                yield Button("⚙️  Manage", id="btn-manage", variant="default")
+                yield Button("🔍 Find", id="btn-find", variant="primary")
+                yield Button("🚪 Quit", id="btn-quit", variant="error")
+
+            yield VerticalSplitter(target_id="sidebar", min_width=20, max_width=50)
+
+            # Main Workspace
+            with Horizontal(id="main-area"):
+                # Left Column (FileExplorer, etc)
+                left_col = Vertical(id="left-col")
+                if "left-col" in dimensions:
+                    left_col.styles.width = dimensions["left-col"]
+
+                with left_col:
+                    widgets = layout.get("left_col", [])
+                    for i, w_name in enumerate(widgets):
+                        # Filter out widgets moved to sidebar to avoid duplication
+                        if w_name not in ["Clock", "ProjectStatus"]:
+                            widget = self._create_widget(w_name, "left", i)
+                            if widget:
+                                if widget.id in dimensions:
+                                    widget.styles.height = dimensions[widget.id]
+                                yield widget
+                                if i < len(widgets) - 1:
+                                    yield HorizontalSplitter(target_id=widget.id, min_height=10, max_height=40)
+
+                yield VerticalSplitter(target_id="left-col", min_width=20, max_width=60)
+
+                # Center Column (Kanban)
+                center_col = Vertical(id="center-col")
+                if "center-col" in dimensions:
+                    center_col.styles.width = dimensions["center-col"]
+
+                with center_col:
+                    widgets = layout.get("center_col", [])
+                    for i, w_name in enumerate(widgets):
+                        widget = self._create_widget(w_name, "center", i)
+                        if widget:
+                            if widget.id in dimensions:
+                                widget.styles.height = dimensions[widget.id]
+                            yield widget
+                            if i < len(widgets) - 1:
+                                yield HorizontalSplitter(target_id=widget.id, min_height=15, max_height=50)
+
+                yield VerticalSplitter(target_id="center-col", min_width=40, max_width=120)
+
+                # Right Column (Marketplace, Usage, etc)
+                right_col = Vertical(id="right-col")
+                if "right-col" in dimensions:
+                    right_col.styles.width = dimensions["right-col"]
+
+                with right_col:
+                    widgets = layout.get("right_col", [])
+                    for i, w_name in enumerate(widgets):
+                        widget = self._create_widget(w_name, "right", i)
+                        if widget:
+                            if widget.id in dimensions:
+                                widget.styles.height = dimensions[widget.id]
+                            yield widget
+                            if i < len(widgets) - 1:
+                                yield HorizontalSplitter(target_id=widget.id, min_height=10, max_height=40)
 
         yield Footer()
         from jcapy.ui.widgets.dashboard_widgets import ConsoleDrawer
         yield ConsoleDrawer(id="dashboard-console")
 
-    def _create_widget(self, name):
+    def _create_widget(self, name, col_name=None, index=0):
         """Factory method for widgets using Registry."""
         widget_cls = WidgetRegistry.get(name)
         if widget_cls:
-            # We enforce id convention w-Name-UUID for uniqueness
-            unique_id = str(uuid.uuid4())[:8]
+            # We enforce id convention w-Name-Col-Idx for stable IDs (persistence)
+            if col_name:
+                unique_id = f"{col_name}-{index}"
+            else:
+                unique_id = str(uuid.uuid4())[:8]
             return widget_cls(id=f"w-{name}-{unique_id}")
 
         # Skip unknown widgets gracefully
@@ -239,47 +319,48 @@ class DashboardScreen(Screen):
 
     def on_mount(self):
         # Initial states
-        self._refresh_grid_layout()
+        self._refresh_layout_visibility()
 
     def on_resize(self) -> None:
         """Handle terminal resize."""
-        self._refresh_grid_layout()
+        # Defer layout refresh slightly to avoid thrashing during smooth resize
+        self.call_after_refresh(self._refresh_layout_visibility)
 
-    def _refresh_grid_layout(self) -> None:
-        """Update grid columns based on active widgets and terminal width."""
+    def _refresh_layout_visibility(self) -> None:
+        """Update column visibility based on active widgets and terminal width."""
         layout = get_dashboard_layout()
         has_left = len(layout.get("left_col", [])) > 0
         has_center = len(layout.get("center_col", [])) > 0
         has_right = len(layout.get("right_col", [])) > 0
 
-        # Build column spec
-        cols = []
-
-        # Responsive: Switch to 1 column if narrow
+        # Responsive: Switch to stacked or adjust visibility if extremely narrow
         is_narrow = self.size.width < 80
 
-        if is_narrow:
-            cols = ["1fr"]
-        else:
-            if has_left: cols.append("1.2fr")
-            if has_center: cols.append("2.5fr")
-            if has_right: cols.append("1fr")
-
-        # Fallback if everything empty
-        if not cols:
-            cols = ["1fr"]
-
         try:
-            area = self.query_one("#main-area")
-            area.styles.grid_size = len(cols)
-            area.styles.grid_columns = " ".join(cols)
-
             # Show/Hide columns
-            # In narrow mode, we don't hide, they just stack (if we use Vertical)
-            # Actually, main-area IS a Grid. If grid-size is 1, they stack automatically.
-            self.query_one("#left-col").set_class(not has_left, "hidden")
-            self.query_one("#center-col").set_class(not has_center, "hidden")
-            self.query_one("#right-col").set_class(not has_right, "hidden")
+            left = self.query_one("#left-col")
+            center = self.query_one("#center-col")
+            right = self.query_one("#right-col")
+
+            if is_narrow:
+                 pass # Placeholder for mobile logic
+
+            left.set_class(not has_left, "hidden")
+            center.set_class(not has_center, "hidden")
+            right.set_class(not has_right, "hidden")
+
+            # Show/Hide splitters smartly
+            # We iterate splitters and check if their target or the element after them is visible
+            for splitter in self.query(VerticalSplitter):
+                 target_id = splitter.target_id
+                 try:
+                     target = self.query_one(f"#{target_id}")
+                     if target.has_class("hidden") or target.display == False:
+                         splitter.display = False
+                     else:
+                         splitter.display = True
+                 except:
+                     pass
         except:
             pass
 
@@ -359,15 +440,7 @@ class DashboardScreen(Screen):
             self.edit_mode = False # Exit edit mode after swap
 
             self.notify(f"Swapped {self.selected_widget_name} <-> {target_name}.")
-
-            # Restart dashboard to apply changes (simplest way)
-            # In Textual, we might need to reinstall screen or rebuild it.
-            # self.app.uninstall_screen... install... push...
-            # For now, let's just notify and ask user to restart or implement a 're-compose' if possible.
-            # Actually, `self.app.install_screen(DashboardScreen(), 'dashboard')` overrides?
-            # Let's try to just notify for now.
             self.notify(f"Swapped {self.selected_widget_name} <-> {target_name}. Restart to see changes.")
-            # OR better: triggers a re-mount if we can.
 
     def _clear_selection(self):
         """Removes visual selection from all widgets."""
@@ -385,11 +458,17 @@ class DashboardScreen(Screen):
         col_id = col_name.replace("_", "-")
         try:
             container = self.query_one(f"#{col_id}")
-            # Remove all children
+            # Check current children to see if we actually need a full rebuild
+            current_widgets = [child.widget_name for child in container.children if hasattr(child, "widget_name")]
+            if current_widgets == widgets:
+                return # Skip if identical
+
             with self.app.batch_update():
                 container.remove_children()
-                for w_name in widgets:
-                    container.mount(self._create_widget(w_name))
+                for i, w_name in enumerate(widgets):
+                    widget = self._create_widget(w_name, col_name.split("_")[0], i)
+                    if widget:
+                        container.mount(widget)
         except:
             self.notify(f"Error rebuilding {col_name}")
 
@@ -465,9 +544,6 @@ class DashboardScreen(Screen):
                 # Robust Sync: Rebuild the whole column
                 self._rebuild_column(found_col)
                 self._clear_selection()
-
-                # Highlight the newly added widget?
-                # (Optional, but rebuild makes it easy)
             else:
                  self.notify("Error: Selected widget lost.")
 
@@ -504,7 +580,6 @@ class DashboardScreen(Screen):
             # Trigger custom action defined in app.py
             self.app.action_toggle_palette()
         # Add other handlers as needed
-
     def on_config_updated(self, message: ConfigUpdated) -> None:
         """Handle configuration updates."""
         if message.key.startswith("dashboard_layout") or message.key == "*":
@@ -515,7 +590,16 @@ class DashboardScreen(Screen):
             self._rebuild_column("center_col")
             self._rebuild_column("right_col")
             # Dynamic grid refresh
-            self._refresh_grid_layout()
+            self._refresh_layout_visibility()
+
+    def on_splitter_updated(self, message: SplitterUpdated) -> None:
+        """Handle dimension changes from splitters and save to config."""
+        dimensions = get_dashboard_dimensions()
+        dimensions[message.target_id] = message.value
+        set_dashboard_dimensions(dimensions)
+        self.log(f"Splitter persistence updated: {message.target_id} -> {message.value}")
+        self.notify(f"Layout saved: {message.target_id}")
+
     async def on_descendant_focus(self, event) -> None:
         """Expand right column if focus enters it."""
         if self.edit_mode: return
@@ -565,10 +649,6 @@ class DashboardScreen(Screen):
              return # Don't interrupt typing
 
         from jcapy.ui.screens.widget_catalog import WidgetCatalogScreen
-        # Reuse catalog screen but potentially in a 'select' mode?
-        # For now, let's just use it to FIND a widget to focus.
-        # Actually WidgetCatalogScreen is for ADDING. We need a 'focus selector'.
-        # Let's build a simple bespoke modal here or use CommandPalette logic.
 
     def action_toggle_palette(self) -> None:
         """Toggle the command palette."""
@@ -581,9 +661,7 @@ class DashboardScreen(Screen):
     def watch_is_right_col_collapsed(self, value: bool) -> None:
         """React to right column collapse change."""
         try:
-            area = self.query_one("#main-area")
             col = self.query_one("#right-col")
-            area.set_class(value, "right-collapsed")
             col.set_class(value, "collapsed")
-        except:
+        except Exception:
             pass # App might still be mounting

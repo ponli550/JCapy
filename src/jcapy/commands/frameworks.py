@@ -4,6 +4,7 @@ import shutil
 import time
 import subprocess
 import re
+import threading
 from datetime import datetime
 from jcapy.config import (
     load_config, save_config, get_active_library_path,
@@ -103,7 +104,7 @@ def list_frameworks():
 
 # ... (rest of file) ...
 
-def harvest_framework(doc_path=None, auto_path=None, name=None, description=None, grade=None, confirm=False, force=False):
+def harvest_framework(doc_path=None, auto_path=None, name=None, description=None, grade=None, confirm=False, force=False, tui_data=None):
     lib_path = get_active_library_path()
     try:
         from rich.console import Console
@@ -118,7 +119,7 @@ def harvest_framework(doc_path=None, auto_path=None, name=None, description=None
     # 1. No critical args provided (doc_path, name)
     # 2. Not in headless mode (confirm/force)
     # 3. Not explicity disabled (though we don't have a flag for that yet)
-    if not doc_path and not name and not auto_path and not confirm and not force:
+    if not doc_path and not name and not auto_path and not confirm and not force and not tui_data:
         try:
             from jcapy.ui.screens.harvest import HarvestScreen
             from textual.app import App
@@ -132,15 +133,10 @@ def harvest_framework(doc_path=None, auto_path=None, name=None, description=None
                     self.exit(result)
 
             app = HarvestApp()
-            result = app.run()
+            result = app.run(signals=threading.current_thread() is threading.main_thread())
 
             if result:
-                 # Map TUI results to local variables
-                 doc_path = result.get("doc_path")
-                 name = result.get("name")
-                 description = result.get("description")
-                 grade = result.get("grade")
-                 console.print(f"[green]✔ Interactive inputs received. Proceeding...[/green]")
+                 tui_data = result
             else:
                  console.print("[yellow]Harvest cancelled.[/yellow]")
                  return
@@ -148,6 +144,14 @@ def harvest_framework(doc_path=None, auto_path=None, name=None, description=None
         except Exception as e:
             console.print(f"[red]Failed to launch Visual Harvest TUI: {e}[/red]")
             console.print("[dim]Falling back to CLI prompts...[/dim]")
+
+    # Map TUI results to local variables if available
+    if tui_data:
+         doc_path = tui_data.get("doc_path")
+         name = tui_data.get("name")
+         description = tui_data.get("description")
+         grade = tui_data.get("grade")
+         console.print(f"[green]✔ Interactive inputs received. Proceeding...[/green]")
 
     console.print(f"[bold magenta]🌾 jcapy Harvest Protocol ({get_current_persona_name()})[/bold magenta]")
     console.print("[dim]-----------------------------------------------------[/dim]")

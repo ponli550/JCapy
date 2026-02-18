@@ -20,6 +20,7 @@ JCAPY_HOME = os.path.join(HOME, ".jcapy")
 EXTERNAL_LIB_PATH = os.path.join(JCAPY_HOME, "library")
 # Assuming bundled library is distributed with the package, e.g., inside src/jcapy/library
 BUNDLED_LIB_PATH = os.path.join(BASE_DIR, "library")
+EXTERNAL_WIDGETS_PATH = os.path.join(JCAPY_HOME, "widgets")
 
 def get_default_library_path():
     # 1. Env Var
@@ -56,24 +57,32 @@ def save_config(data):
     CONFIG_MANAGER.set_all(data)
 
 def get_api_key(provider):
-    """Retrieves API Key with priority: 1. Environment Var, 2. Config File"""
+    """Retrieves API Key with priority: 1. Environment Var, 2. Config File. Case-insensitive."""
+    # Ensure .env is loaded (if available) - lazy load to avoid dependency bloat
+    try:
+        import dotenv
+        dotenv.load_dotenv()
+    except ImportError:
+        pass
+
     provider = provider.lower()
     env_map = {
-        "gemini": "GEMINI_API_KEY",
-        "openai": "OPENAI_API_KEY",
-        "deepseek": "DEEPSEEK_API_KEY"
+        "gemini": ["GEMINI_API_KEY", "gemini_api_key"],
+        "openai": ["OPENAI_API_KEY", "openai_api_key"],
+        "deepseek": ["DEEPSEEK_API_KEY", "deepseek_api_key"]
     }
 
-    key_name = env_map.get(provider)
-    if not key_name: return None
+    key_names = env_map.get(provider, [])
+    if not key_names: return None
 
-    # 1. Check Environment
-    if os.environ.get(key_name):
-        return os.environ.get(key_name)
+    # 1. Check Environment (Both cases)
+    for kn in key_names:
+        if os.environ.get(kn):
+            return os.environ.get(kn)
 
-    # 2. Check Config
-    # 2. Check Config
-    return CONFIG_MANAGER.get(f"env.{key_name}")
+    # 2. Check Config (Checking with standard uppercase key name)
+    primary_key = key_names[0]
+    return CONFIG_MANAGER.get(f"env.{primary_key}")
 
 def set_api_key(provider, key):
     """Securely saves an API key to the config file."""
@@ -156,7 +165,7 @@ def get_all_ux_preferences() -> dict:
 DEFAULT_LAYOUT = {
     "left_col": ["FileExplorer", "MCP"],
     "center_col": ["Kanban"],
-    "right_col": ["Marketplace"]
+    "right_col": ["Clock", "News", "UsageTracker"]
 }
 
 def get_dashboard_layout():
@@ -166,4 +175,13 @@ def get_dashboard_layout():
 def set_dashboard_layout(layout):
     """Set dashboard widget layout."""
     CONFIG_MANAGER.set("dashboard_layout", layout)
+    return True
+
+def get_dashboard_dimensions():
+    """Get dashboard widget dimensions (widths/heights)."""
+    return CONFIG_MANAGER.get("dashboard_dimensions", {})
+
+def set_dashboard_dimensions(dimensions):
+    """Set dashboard widget dimensions (widths/heights)."""
+    CONFIG_MANAGER.set("dashboard_dimensions", dimensions)
     return True

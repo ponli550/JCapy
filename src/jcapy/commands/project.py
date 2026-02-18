@@ -77,7 +77,7 @@ def check_system(full_scan=True):
 
     return results
 
-def init_project(grade=None):
+def init_project(grade=None, tui_data=None):
     """Scaffold One-Army Directory Structure & Config"""
     try:
         from rich.console import Console
@@ -136,7 +136,10 @@ def init_project(grade=None):
         console.print("\\n[bold yellow]📋 Project Configuration[/bold yellow]")
 
         # 4. Grade Selection
-        if not grade:
+        if tui_data and "grade" in tui_data:
+             grade_choice = tui_data["grade"].upper()
+             console.print(f"  [cyan]ℹ Grade selected via TUI:[/cyan] {grade_choice}")
+        elif not grade:
             console.print("Select Project Grade (affects deployment strictness):")
             console.print("  [bold green]C (Skirmish)[/bold green]: Speed > Quality (Hackathons)")
             console.print("  [bold blue]B (Campaign)[/bold blue]: Balanced (Standard SaaS) [dim][Default][/dim]")
@@ -186,7 +189,7 @@ def init_project(grade=None):
     except ImportError:
         print("Rich not installed. Run 'pip install rich'")
 
-def deploy_project():
+def deploy_project(tui_data=None):
     """Execute Deployment Pipeline based on Grade"""
     try:
         from rich.console import Console
@@ -198,7 +201,8 @@ def deploy_project():
 
         config_path = os.path.join(os.getcwd(), ".jcapyrc")
         if not os.path.exists(config_path):
-            console.print("[bold red]❌ Error:[/bold red] .jcapyrc not found. Run 'jcapy init' first.")
+            console.print("\n[bold red]❌ Error:[/bold red] .jcapyrc not found in the current directory.")
+            console.print("[bold yellow]Hint:[/bold yellow] This command requires a JCapy project. Run [cyan]jcapy init[/cyan] to initialize One-Army structure.")
             return
 
         with open(config_path, 'r') as f:
@@ -237,11 +241,15 @@ def deploy_project():
             table.add_row(str(idx+1), s["name"], s.get("grade", "-"))
         console.print(table)
 
-        choice_str = Prompt.ask("Choose Strategy ID", default="1")
-        try:
-            choice_idx = int(choice_str) - 1
-        except:
-            choice_idx = 0
+        if tui_data and "choice_idx" in tui_data:
+             choice_idx = tui_data["choice_idx"]
+             console.print(f"  [cyan]ℹ Strategy selected via TUI:[/cyan] {strategies[choice_idx]['name']}")
+        else:
+            choice_str = Prompt.ask("Choose Strategy ID", default="1")
+            try:
+                choice_idx = int(choice_str) - 1
+            except:
+                choice_idx = 0
 
         selected_strategy = strategies[choice_idx] if 0 <= choice_idx < len(strategies) else strategies[0]
         steps = []

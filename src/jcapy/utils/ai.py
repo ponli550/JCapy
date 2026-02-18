@@ -3,34 +3,25 @@ import json
 import urllib.request
 import urllib.error
 from jcapy.config import get_api_key
+from typing import Optional
 
-def _track_usage(provider: str, prompt: str, response: str):
-    """Helper to track token usage and cost."""
+def _track_usage(provider: str, prompt: str, response: str, model: Optional[str] = None):
+    """Helper to track token usage and cost via UsageLogManager."""
     try:
-        from jcapy.config import CONFIG_MANAGER
+        from jcapy.utils.usage import USAGE_LOG_MANAGER
 
         # Estimate tokens (standard approximation: chars / 4)
         in_tokens = len(prompt) // 4
         out_tokens = len(response) // 4
 
-        # Pricing Registry ($ per 1M tokens)
-        pricing = {
-            "gemini": {"in": 0.075, "out": 0.30},
-            "openai": {"in": 5.00, "out": 15.00},
-            "deepseek": {"in": 0.14, "out": 0.28}
-        }
+        # Use provided model or fall back to defaults
+        if not model:
+            if provider == "gemini": model = "gemini-1.5-flash"
+            elif provider == "openai": model = "gpt-4o"
+            elif provider == "deepseek": model = "deepseek-chat"
+            else: model = "local"
 
-        rate = pricing.get(provider.lower(), {"in": 0, "out": 0})
-        cost = (in_tokens * rate["in"] + out_tokens * rate["out"]) / 1_000_000
-
-        # Update Config (Accumulated)
-        current_in = CONFIG_MANAGER.get("usage.input", 0)
-        current_out = CONFIG_MANAGER.get("usage.output", 0)
-        current_cost = CONFIG_MANAGER.get("usage.cost", 0.0)
-
-        CONFIG_MANAGER.set("usage.input", current_in + in_tokens)
-        CONFIG_MANAGER.set("usage.output", current_out + out_tokens)
-        CONFIG_MANAGER.set("usage.cost", round(current_cost + cost, 6))
+        USAGE_LOG_MANAGER.record_hit(provider, model, in_tokens, out_tokens)
     except Exception:
         # Don't let usage tracking break the AI call
         pass
