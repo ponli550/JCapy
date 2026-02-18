@@ -1,0 +1,5 @@
+include src/jcapy/ui/*.tcss
+include src/jcapy/**/*.md
+include README.md
+include LICENSE
+global-exclude *.py[cod]
