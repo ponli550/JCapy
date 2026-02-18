@@ -415,13 +415,10 @@ if confirm "🍺 Also update Homebrew tap?"; then
 
             if [ -f "$FORMULA_PATH" ]; then
                 echo "📝 Updating $FORMULA_PATH..."
-                if [[ "$OSTYPE" == "darwin"* ]]; then
-                    sed -i '' "s|url \".*\"|url \"$URL\"|" "$FORMULA_PATH"
-                    sed -i '' "s|sha256 \".*\"|sha256 \"$SHA\"|" "$FORMULA_PATH"
-                else
-                    sed -i "s|url \".*\"|url \"$URL\"|" "$FORMULA_PATH"
-                    sed -i "s|sha256 \".*\"|sha256 \"$SHA\"|" "$FORMULA_PATH"
-                fi
+                # sed -i ... (REMOVED)
+                # Use the new Python script to update formula intelligently
+                echo "🤖 Running update_brew_formula.py..."
+                python3 scripts/update_brew_formula.py "$FORMULA_PATH" --url "$URL" --sha256 "$SHA"
 
                 cd "$TEMP_DIR"
                 git config user.email "jcapy-bot@ponli550.com"
