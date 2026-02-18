@@ -233,7 +233,7 @@ if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         fi
 
         cd "$TEMP_DIR"
-        git config user.email "jcapy-bot@ponli550.com"
+        git config user.email "nazrijz336@gmail.com"
         git config user.name "JCapy Release Bot"
         git add .
         git commit -m "Update jcapy to v$NEW_VERSION"
