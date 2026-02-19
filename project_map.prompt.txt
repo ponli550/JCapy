@@ -18,21 +18,21 @@ Return a Markdown document with:
 
 ![JCapy Logo](https://raw.githubusercontent.com/irfansoftstudio/jcapy/main/docs/assets/logo.png)
 
+[![PyPI version](https://badge.fury.io/py/jcapy.svg)](https://badge.fury.io/py/jcapy)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/release/python-3110/)
+
 > **Build Like a Team of Ten.**
 
-JCapy is an **Autonomous Engineer** that lives in your terminal. It transforms solo developers into "One-Army" powerhouses by automating knowledge management, project scaffolding, and intelligent debugging.
+**JCapy** is an **Autonomous Engineer** that lives in your terminal. It transforms solo developers into "One-Army" powerhouses by automating knowledge management, project scaffolding, and intelligent debugging.
 
-## Features
+---
 
-### 🧠 Autonomous Log Stream Intelligence
-**JCapy watches while you work.**
-With the new `AutonomousObserver`, JCapy monitors your terminal output in real-time. It detects crash loops, missing dependencies, and runtime errors, instanly offering "Shadow Mode" fixes without you asking.
-- **Passive Observation**: No need to copy-paste logs.
-- **Shadow Mode**: JCapy privately logs what it *would* have done vs. what you *did*, learning from your expertise.
-- **Privacy First**: All data is stored locally in `~/.jcapy/shadow_log.jsonl`.
+## 🚀 Why JCapy?
 
-### 🚀 One-Army Scaffolding
-- **Persona System**: Switch context instantly be
+In the modern development landscape, context switching kills productivity. JCapy acts as your **context-aware partner**, handling the heavy lifting of project setup, documentation, and debugging so you can focus on writing code.
+
+- **Stop Debugging Alone**: JCapy watches your te
 
 --- FILE: ./MEMORY.md ---
 # JCapy Project Memory

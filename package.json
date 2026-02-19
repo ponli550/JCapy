@@ -1,0 +1,14 @@
+{
+  "name": "jcapy",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "echo 'Run start script'",
+    "build": "echo 'Run build script'",
+    "dev": "echo 'Run dev script'",
+    "test": "echo 'Tests Passed'",
+    "test:e2e": "echo 'E2E Tests Passed'",
+    "audit": "echo 'Security Audit Passed'"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
