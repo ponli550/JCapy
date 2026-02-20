@@ -42,3 +42,4 @@ htmlcov/
 # Build artifacts
 *.tar.gz
 .worktrees/
+worktrees/
