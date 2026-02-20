@@ -1,0 +1,45 @@
+/Users/irfanali/Desktop/JAAVISv2.0.0/jcapy/apps/web/server/bridge.py:74: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("startup")
+INFO:     Started server process [36229]
+INFO:     Waiting for application startup.
+INFO:orbital-bridge:Connected to jcapyd ZMQ stream at tcp://localhost:5555
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:59132 - "WebSocket /ws" [accepted]
+INFO:orbital-bridge:Client connected. Active sessions: 1
+INFO:     connection open
+INFO:orbital-bridge:Received from client: {"type":"APPROVE_ACTION","id":"tx_1771561276","approved":true}
+INFO:orbital-bridge:Sending approval RPC to tcp://localhost:5556: ID=tx_1771561276, Approved=True
+INFO:orbital-bridge:jcapyd reply: ACK_SUCCESS
+INFO:orbital-bridge:Client disconnected. Active sessions: 0
+INFO:     connection closed
+INFO:     127.0.0.1:59230 - "WebSocket /ws" [accepted]
+INFO:orbital-bridge:Client connected. Active sessions: 1
+INFO:     connection open
+INFO:orbital-bridge:Received from client: {"type":"APPROVE_ACTION","id":"tx_1771561506","approved":false}
+INFO:orbital-bridge:Sending approval RPC to tcp://localhost:5556: ID=tx_1771561506, Approved=False
+INFO:orbital-bridge:jcapyd reply: ACK_SUCCESS
+INFO:orbital-bridge:Client disconnected. Active sessions: 0
+INFO:     connection closed
+INFO:     127.0.0.1:59273 - "WebSocket /ws" [accepted]
+INFO:orbital-bridge:Client connected. Active sessions: 1
+INFO:     connection open
+INFO:orbital-bridge:Client disconnected. Active sessions: 0
+INFO:     connection closed
+INFO:     127.0.0.1:59423 - "WebSocket /ws" [accepted]
+INFO:orbital-bridge:Client connected. Active sessions: 1
+INFO:     connection open
+INFO:     127.0.0.1:59597 - "GET / HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:59611 - "WebSocket /ws" [accepted]
+INFO:orbital-bridge:Client connected. Active sessions: 2
+INFO:     connection open
+INFO:orbital-bridge:Received from client: {"type":"APPROVE_ACTION","id":"tx_1771570254","approved":true}
+INFO:orbital-bridge:Sending approval RPC to tcp://localhost:5556: ID=tx_1771570254, Approved=True
+INFO:orbital-bridge:jcapyd reply: ACK_SUCCESS
+INFO:orbital-bridge:Client disconnected. Active sessions: 1
+INFO:     connection closed

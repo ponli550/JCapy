@@ -1,18 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Shield, Radio, Activity, Terminal, Zap, Power, AlertTriangle, RefreshCcw, Check, X, ShieldAlert, Cpu } from 'lucide-react';
+import { Shield, Radio, Activity, Terminal, Zap, Power, AlertTriangle, RefreshCcw, Check, X, ShieldAlert, Cpu, Link, Unlink, Database } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MockDaemonBridge } from 'mock-daemon';
+import { WebSocketBridge } from 'bridge-service';
 
 function App() {
    const [isHalted, setIsHalted] = useState(false);
    const [events, setEvents] = useState([]);
    const [activeIntervention, setActiveIntervention] = useState(null);
+   const [linkStatus, setLinkStatus] = useState('OFFLINE');
    const bridgeRef = useRef(null);
 
    useEffect(() => {
       if (!bridgeRef.current) {
-         bridgeRef.current = new MockDaemonBridge((event) => {
-            setEvents(prev => [...prev, event]);
+         bridgeRef.current = new WebSocketBridge((event) => {
+            if (event.type === 'STATUS' && event.message === 'CONNECTION_ACTIVE') {
+               setLinkStatus('SYNCHRONIZED');
+               return;
+            }
+
+            // Handle trajectory events with virtualization (Frontend Guardrail)
+            setEvents(prev => {
+               const next = [...prev, event];
+               // Limit to last 100 events for UI performance
+               return next.length > 100 ? next.slice(-100) : next;
+            });
+
             if (event.type === 'INTERVENTION') {
                setActiveIntervention(event);
             }
@@ -27,8 +39,16 @@ function App() {
    };
 
    const handleIntervention = (approved) => {
+      if (!activeIntervention) return;
+
+      // Send approval back via WebSocket
+      bridgeRef.current.send({
+         type: 'APPROVE_ACTION',
+         id: activeIntervention.id,
+         approved: approved
+      });
+
       setActiveIntervention(null);
-      bridgeRef.current.respondToIntervention(activeIntervention.id, approved);
    };
 
    return React.createElement('div', { className: 'min-h-screen w-full flex flex-col p-8 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-blue-900/20 via-slate-900 to-slate-950 font-sans' }, [
@@ -70,9 +90,13 @@ function App() {
             ])
          ]),
          React.createElement('div', { className: 'flex items-center space-x-4' }, [
-            React.createElement('div', { className: 'flex items-center space-x-2 text-xs bg-blue-500/10 text-blue-400 px-4 py-1.5 rounded-full border border-blue-500/20' }, [
-               React.createElement('div', { className: 'w-2 h-2 bg-blue-500 rounded-full' }),
-               React.createElement('span', { className: 'font-semibold tracking-wide' }, 'DAEMON SYNCHRONIZED')
+            React.createElement('div', { className: `flex items-center space-x-2 text-xs px-4 py-1.5 rounded-full border transition-all ${linkStatus === 'SYNCHRONIZED' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}` }, [
+               React.createElement(linkStatus === 'SYNCHRONIZED' ? Link : Unlink, { size: 14 }),
+               React.createElement('span', { className: 'font-semibold tracking-wide' }, `ORBITAL ${linkStatus}`)
+            ]),
+            React.createElement('div', { className: `flex items-center space-x-2 text-xs px-4 py-1.5 rounded-full border border-blue-500/10 bg-blue-500/5 text-blue-400/60` }, [
+               React.createElement(Database, { size: 14 }),
+               React.createElement('span', { className: 'font-semibold tracking-wide uppercase' }, 'Audit Log Persisted')
             ]),
             React.createElement('button', {
                onClick: toggleKillSwitch,
@@ -146,6 +170,10 @@ function App() {
                ]),
 
                React.createElement('div', { className: 'flex-1 border border-white/5 rounded-2xl bg-black/40 p-6 font-mono text-sm overflow-y-auto space-y-6 custom-scrollbar' }, [
+                  events.length === 0 && React.createElement('div', { className: 'flex flex-col items-center justify-center h-full opacity-20' }, [
+                     React.createElement(Activity, { size: 48, className: 'mb-4' }),
+                     React.createElement('p', null, 'Waiting for trajectory frames...')
+                  ]),
                   events.map((event, i) => {
                      if (event.type === 'INTERVENTION') {
                         return React.createElement(motion.div, {
@@ -163,7 +191,7 @@ function App() {
                            // Diff Block
                            React.createElement('div', { className: 'bg-black/40 rounded-xl p-4 border border-white/5 mb-6 overflow-x-auto' }, [
                               React.createElement('pre', { className: 'text-[11px] leading-relaxed' },
-                                 event.diff.split('\n').map((line, li) =>
+                                 (event.diff || '').split('\n').map((line, li) =>
                                     React.createElement('div', { key: li, className: line.startsWith('+') ? 'text-green-400 bg-green-400/10' : line.startsWith('-') ? 'text-red-400 bg-red-400/10' : 'text-slate-400' }, line)
                                  )
                               )
@@ -198,7 +226,7 @@ function App() {
                         React.createElement('div', { className: `absolute left-0 top-0 bottom-0 w-1 ${event.type === 'THOUGHT' ? 'bg-blue-500' : 'bg-slate-700'}` }),
                         React.createElement('div', { className: 'flex justify-between mb-2' }, [
                            React.createElement('span', { className: `text-[10px] font-black uppercase tracking-widest ${event.type === 'THOUGHT' ? 'text-blue-400/60' : 'text-slate-500'}` }, event.type),
-                           React.createElement('span', { className: 'text-[10px] font-mono text-slate-600' }, event.timestamp)
+                           React.createElement('span', { className: 'text-[10px] font-mono text-slate-600' }, event.timestamp || '00:00:00')
                         ]),
                         React.createElement('p', { className: 'text-slate-300 leading-relaxed' }, event.message)
                      ]);
