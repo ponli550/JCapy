@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>JCapy Control Plane [STATION-01]</title>
+   <!-- Tailwind with Custom Config via Script -->
+   <script src="https://cdn.tailwindcss.com"></script>
+   <script>
+      tailwind.config = {
+         theme: {
+            extend: {
+               colors: {
+                  primary: '#3b82f6',
+                  'glass-bg': 'rgba(15, 23, 42, 0.8)',
+                  'glass-border': 'rgba(255, 255, 255, 0.1)',
+               }
+            }
+         }
+      }
+   </script>
+   <style type="text/tailwindcss">
+      @layer base {
+            body { @apply bg-[#0f172a] text-white font-sans overflow-hidden; }
+        }
+        @layer components {
+            .bg-glass {
+                @apply bg-glass-bg backdrop-blur-xl border border-glass-border shadow-2xl;
+            }
+            .glass-card {
+                @apply bg-glass rounded-2xl p-6 transition-all duration-300 hover:border-white/20;
+            }
+        }
+    </style>
+</head>
+
+<body>
+   <div id="root"></div>
+
+   <!-- Pinned Versions to avoid mismatch -->
+   <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0?external=react",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?external=react",
+            "lucide-react": "https://esm.sh/lucide-react@0.344.0?external=react",
+            "framer-motion": "https://esm.sh/framer-motion@11.0.0?external=react",
+            "mock-daemon": "./src/mockDaemon.js"
+        }
+    }
+    </script>
+   <script type="module">
+      import React from 'react';
+      import { createRoot } from 'react-dom/client';
+      import App from './src/App.standalone.js';
+
+      const container = document.getElementById('root');
+      const root = createRoot(container);
+      root.render(React.createElement(App));
+   </script>
+</body>
+
+</html>
