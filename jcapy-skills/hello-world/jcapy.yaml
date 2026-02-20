@@ -1,0 +1,8 @@
+name: "hello-world"
+version: "0.1.0"
+description: "A proof-of-concept plugin for JCapy Registry"
+author: "Community Dev"
+entry_point: "plugin.py"
+commands:
+  - name: "hello"
+    description: "Prints a greeting from the plugin system"

@@ -155,7 +155,17 @@ def main():
             return
 
         if hasattr(args, 'func'):
-            result = args.func(args)
+            # Show a spinner for tactical/long-running commands in CLI mode
+            registry = get_registry()
+            cmd_name = getattr(args, 'command', 'command')
+            is_interactive = registry.is_interactive(cmd_name)
+
+            if not is_interactive and sys.stdout.isatty():
+                from rich.status import Status
+                with Status(f"[bold cyan]Orchestrating {cmd_name}...[/]", spinner="dots"):
+                    result = args.func(args)
+            else:
+                result = args.func(args)
 
             # Legacy/Modern Bridge: Handle CommandResult
             # If a command returns a result object, we should render it for CLI users

@@ -38,12 +38,29 @@ def ask_brain(question):
     """RAG-lite: Ask a question to the Knowledge Graph"""
     # 0. Handle Piping & MockArgs
     piped_data = getattr(question, 'piped_data', None) if hasattr(question, 'piped_data') else None
+    cognitive_mode = getattr(question, 'cognitive', False) if hasattr(question, 'cognitive') else False
     q_str = question if isinstance(question, str) else " ".join(getattr(question, '_tokens', []))
 
     lib_path = get_active_library_path()
 
     if not os.path.exists(lib_path):
         console.print(f"[red]Brain not found at {lib_path}. Run 'jcapy brain link <path>' first.[/red]")
+        return
+
+    # 1. Cognitive Mode (ASI05, 2.2)
+    if cognitive_mode:
+        from jcapy.agents.sentinel import Sentinel
+        from jcapy.agents.jcapy_agent import JCapyAgent
+        from jcapy.core.orchestration import CognitiveOrchestrator
+        from jcapy.core.audit import get_audit_logger
+
+        planner = Sentinel()
+        executor = JCapyAgent()
+        audit_logger = get_audit_logger()
+        orchestrator = CognitiveOrchestrator(planner, executor, audit_logger=audit_logger)
+
+        # We pass piped_data as context if available
+        orchestrator.run(q_str, context=piped_data)
         return
 
     console.print(f"[bold magenta]🧠 Thinking...[/bold magenta] [dim](Scanning {lib_path})[/dim]")

@@ -16,6 +16,7 @@ from jcapy.commands.core_cmd import run_undo, setup_undo, run_suggest, run_tutor
 from jcapy.commands.theme import ThemeCommand
 from jcapy.commands.grep import GrepCommand
 from jcapy.commands.edit import EditCommand
+from jcapy.commands.version import run_version
 from jcapy.ui.ux.safety import get_undo_stack
 from jcapy.ui.ux.feedback import show_success, show_error
 from jcapy.config import get_active_library_path, load_config
@@ -144,6 +145,7 @@ def register_core_commands(registry):
 
     def setup_ask(parser):
         parser.add_argument("question", nargs="+", help="Question")
+        parser.add_argument("--cognitive", action="store_true", help="Enable Sentinel Cognitive Orchestration (Planning split)")
 
     registry.register("ask", lambda args: brain_cmd.ask_brain(args),
                       "Ask the Brain (Shortcut)", setup_parser=setup_ask)
@@ -209,6 +211,7 @@ def register_core_commands(registry):
 
     registry.register(GrepCommand())
     registry.register(EditCommand())
+    registry.register("version", run_version, "Display version info")
 
 
     # ══════════════════════════════════════════

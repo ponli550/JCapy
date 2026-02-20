@@ -1,0 +1,7 @@
+name: "test-driven-development"
+version: "1.0.0"
+description: "Red-Green-Refactor workflow for robust code."
+author: "Antigravity"
+entry_point: null
+commands: []
+permissions: ["run_command", "write_to_file", "replace_file_content"]

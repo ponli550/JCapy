@@ -22,21 +22,30 @@ import time
 from typing import Optional, Callable
 
 class ModeHUD(Static):
-    """A visual indicator for the current input mode."""
+    """A visual indicator for the current input mode and active persona/role."""
     def on_mount(self) -> None:
         self.watch(self.app, "current_mode", self.update_mode)
 
     def update_mode(self, mode: InputMode) -> None:
-        # persona = CONFIG_MANAGER.get("current_persona", "programmer")
-        # Since HUD is a widget, we can access app.config or just use global
         from jcapy.config import CONFIG_MANAGER
         persona = CONFIG_MANAGER.get("current_persona", "N/A")
+
+        # Role logic: Dashboard typically implies Sentinel (Planning),
+        # Terminal typically implies Executor (Action).
+        role = "SENTINEL" if self.app.screen.id == "dashboard" else "EXECUTOR"
+        role_color = "magenta" if role == "SENTINEL" else "cyan"
 
         color = "cyan"
         if mode == InputMode.INSERT: color = "magenta"
         elif mode == InputMode.VISUAL: color = "yellow"
         elif mode == InputMode.COMMAND: color = "green"
-        self.update(f"| [bold {color}]{mode.name}[/] | [dim]Persona:[/] [bold cyan]{persona.capitalize()}[/] |")
+
+        content = (
+            f"[bold {color}][/][bold white on {color}]{mode.name}[/][bold {color}][/]  "
+            f"[dim]Role:[/] [bold {role_color}]{role}[/] [dim] • [/] "
+            f"[dim]Persona:[/] [bold cyan]{persona.capitalize()}[/]"
+        )
+        self.update(content)
 class JCapyApp(App):
     """JCapy: The Knowledge Operating System"""
 

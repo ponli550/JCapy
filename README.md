@@ -20,30 +20,32 @@ In the modern development landscape, context switching kills productivity. JCapy
 - **Stop Starting from Scratch**: Harvest existing codebases into reusable templates.
 - **Stop Losing Context**: Switch between Frontend, Backend, and DevOps personas instantly.
 
-## ✨ Key Features
+### 🎭 Cinematic Dashboard (2.0)
+**JCapy isn't just a CLI; it's a Knowledge OS.**
+Experience the new cinematic TUI with a high-end Glassmorphic aesthetic.
+- **Cinematic Startup**: Matrix-inspired crystallization reveal with initialization logs.
+- **Persistent Mode HUD**: Real-time tracking of input mode, persona, and role (**Sentinel** vs. **Executor**).
+- **Advanced Zen Mode**: One-click focus state that removes all UI chrome for deep work.
 
-### 🧠 Autonomous Log Stream Intelligence
-**JCapy watches while you work.**
-With the new `AutonomousObserver`, JCapy monitors your terminal output in real-time. It detects crash loops, missing dependencies, and runtime errors, instantly offering "Shadow Mode" fixes without you asking.
-- **Passive Observation**: No need to copy-paste logs.
-- **Shadow Mode**: JCapy privately logs what it *would* have done vs. what you *did*, learning from your expertise.
-- **Privacy First**: All data is stored locally in `~/.jcapy/shadow_log.jsonl`.
+### 🧠 Cognitive Split (The Sentinel Architecture)
+**JCapy plans before it acts.**
+Using the "Project Sentinel" persona, the system separates planning from execution.
+- **The Sentinel**: Generates high-level execution plans for user approval.
+- **The Executor**: Carries out the plan using sandboxed tools.
+- **Event-Driven**: Fully decoupled via a high-throughput **Async Event Bus**.
 
-### 🏗️ One-Army Scaffolding
-- **Persona System**: Switch context instantly between `DevOps`, `Frontend`, and `Backend` roles.
-- **Framework Harvesting**: Turn any documentation or codebase into a reusable template with `jcapy harvest`.
-- **Grade-Aware Deploy**: Deploy with confidence using A/B/C grade pipelines.
-
-### 🛡️ Privacy-First Telemetry
-JCapy uses a **"Local-First, Cloud-Optional"** model.
-- **Default**: Zero data sent to the cloud.
-- **Shadow Logs**: Stored locally in JSONL format for your inspection.
-- **Opt-in**: Enable cloud telemetry only if you want to contribute to the global brain.
+### 🛡️ Secure Tooling & Sandboxing
+**Code execution you can trust.**
+All JCapy tools run in isolated environments.
+- **Sandbox Providers**: Integrated support for local virtualization and **Docker Sandboxing**.
+- **Permission Scoping**: Skills must declare permissions (e.g., `file.write`, `network.access`) before execution.
+- **Circuit Breakers**: Automatic protection against agent "hallucination loops" or recursive failures.
 
 ### 🧩 JCapy Skills Registry
-Extend JCapy with community-driven skills.
-- **Official Registry**: [ponli550/jcapy-skills](https://github.com/ponli550/jcapy-skills)
-- **Create Your Own**: Build your own skills using our [Official Template](https://github.com/ponli550/jcapy-skills/tree/main/templates/python-standard).
+Formalized registry for manageable agent capabilities.
+- **Central Index**: Faster discovery via `registry.yaml`.
+- **Dependency Resolving**: Skills can declare and validate dependencies.
+- **Official Registry**: [irfansoftstudio/jcapy-skills](https://github.com/irfansoftstudio/jcapy-skills)
 
 ---
 

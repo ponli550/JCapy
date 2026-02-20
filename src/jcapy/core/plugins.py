@@ -304,8 +304,8 @@ class CommandRegistry:
                 self._arguments[name](parser)
 
     def load_plugins(self):
-        """Load plugins from entry points and local config."""
-        # 1. Entry Points
+        """Load plugins from entry points, local skills, and local config."""
+        # 1. Entry Points (Standard Plugins)
         try:
             # Python 3.10+
             eps = importlib.metadata.entry_points(group="jcapy.plugins")
@@ -320,7 +320,20 @@ class CommandRegistry:
                     plugin.register_commands(self)
             except Exception as e:
                 # We don't want to crash CLI if a plugin is broken
-                print(f"ValuesError loading plugin {ep.name}: {e}")
+                print(f"ValueError loading plugin {ep.name}: {e}")
+
+        # 2. Project Skills (ASI05, 2.1)
+        from jcapy.core.skills import get_skill_registry
+        registry = get_skill_registry()
+        registry.discover()
+
+        for skill in registry.list_skills():
+            try:
+                manifest = skill.manifest
+                if manifest.entry_point:
+                    self._load_single_plugin(skill.path, os.path.join(skill.path, "jcapy.yaml"))
+            except Exception as e:
+                print(f"Warning: Failed to load skill '{skill.manifest.name}': {e}")
 
     def load_local_plugins(self, plugins_dir: str):
         """
