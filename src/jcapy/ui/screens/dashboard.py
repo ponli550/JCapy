@@ -454,7 +454,6 @@ class DashboardScreen(Screen):
             self._clear_selection()
             self.edit_mode = False # Exit edit mode after swap
 
-            self.notify(f"Swapped {self.selected_widget_name} <-> {target_name}.")
             self.notify(f"Swapped {self.selected_widget_name} <-> {target_name}. Restart to see changes.")
 
     def _clear_selection(self):

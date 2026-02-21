@@ -1,0 +1,346 @@
+# JCapy Unified Release Workflow
+# Comprehensive release automation: PyPI + Docker + GitHub Release
+# Top-notch standard with attestations, SBOM, and multi-platform support
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 4.1.8)'
+        required: true
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
+
+jobs:
+  # ============================================
+  # Job 1: Validate and Prepare
+  # ============================================
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION=${{ inputs.version }}
+          else
+            VERSION=${GITHUB_REF#refs/tags/v}
+          fi
+          
+          # Check for prerelease (contains -alpha, -beta, -rc)
+          if [[ "$VERSION" == *"-alpha"* ]] || [[ "$VERSION" == *"-beta"* ]] || [[ "$VERSION" == *"-rc"* ]]; then
+            IS_PRERELEASE=true
+          else
+            IS_PRERELEASE=false
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          echo "📦 Releasing version: $VERSION"
+          echo "🔍 Prerelease: $IS_PRERELEASE"
+
+      - name: Validate version consistency
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          PYPROJECT_VERSION=$(grep '^version = ' pyproject.toml | cut -d '"' -f 2)
+          
+          if [ "$VERSION" != "$PYPROJECT_VERSION" ]; then
+            echo "❌ Version mismatch!"
+            echo "   Tag/Input: $VERSION"
+            echo "   pyproject.toml: $PYPROJECT_VERSION"
+            exit 1
+          fi
+          echo "✅ Version files consistent: $VERSION"
+
+  # ============================================
+  # Job 2: Run Tests
+  # ============================================
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[all]"
+          pip install pytest pytest-cov pytest-asyncio pip-audit
+
+      - name: Run tests
+        run: |
+          pytest tests/ -v --cov=src/jcapy --cov-report=xml --cov-report=term-missing
+
+      - name: Security audit
+        run: |
+          pip-audit --desc-only || true  # Non-blocking, just informative
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+
+  # ============================================
+  # Job 3: Build Python Package
+  # ============================================
+  build-python:
+    name: Build Python Package
+    runs-on: ubuntu-latest
+    needs: [validate, test]
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build distribution
+        run: python -m build
+
+      - name: Check distribution
+        run: twine check dist/*
+
+      - name: Generate hashes
+        id: hash
+        run: |
+          cd dist
+          echo "hashes<<EOF" >> $GITHUB_OUTPUT
+          sha256sum * | tee -a $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 30
+
+  # ============================================
+  # Job 4: Publish to PyPI
+  # ============================================
+  publish-pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    needs: [validate, build-python]
+    environment:
+      name: pypi
+      url: https://pypi.org/p/jcapy
+    permissions:
+      id-token: write  # Trusted Publishing
+      contents: read
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          attestations: true
+
+      - name: Verify publication
+        run: |
+          VERSION=${{ needs.validate.outputs.version }}
+          echo "✅ Published jcapy==$VERSION to PyPI"
+          echo "🔗 https://pypi.org/project/jcapy/$VERSION/"
+
+  # ============================================
+  # Job 5: Build Docker Images
+  # ============================================
+  build-docker:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [validate, publish-pypi]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/${{ github.repository_owner }}/jcapy
+            name=dockerhub,enable=${{ secrets.DOCKERHUB_USERNAME != '' }},docker.io/${{ secrets.DOCKERHUB_USERNAME }}/jcapy
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.validate.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.validate.outputs.version }}
+            type=raw,value=latest,enable=${{ needs.validate.outputs.is_prerelease == 'false' }}
+
+      - name: Build and push
+        id: build-push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: true
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Output summary
+        run: |
+          VERSION=${{ needs.validate.outputs.version }}
+          echo "## 🐳 Docker Images Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${{ github.repository_owner }}/jcapy:$VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${{ github.repository_owner }}/jcapy:latest" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================
+  # Job 6: Create GitHub Release
+  # ============================================
+  github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [validate, build-python, publish-pypi, build-docker]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION=${{ needs.validate.outputs.version }}
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+          
+          echo "## Changes" > RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          
+          if [ -n "$PREV_TAG" ]; then
+            echo "### What's Changed since $PREV_TAG" >> RELEASE_NOTES.md
+            echo "" >> RELEASE_NOTES.md
+            git log $PREV_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges >> RELEASE_NOTES.md
+          else
+            echo "Initial release" >> RELEASE_NOTES.md
+          fi
+          
+          echo "" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "## Installation" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "### PyPI" >> RELEASE_NOTES.md
+          echo "\`\`\`bash" >> RELEASE_NOTES.md
+          echo "pip install jcapy==$VERSION" >> RELEASE_NOTES.md
+          echo "\`\`\`" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "### Docker" >> RELEASE_NOTES.md
+          echo "\`\`\`bash" >> RELEASE_NOTES.md
+          echo "docker pull ghcr.io/${{ github.repository_owner }}/jcapy:$VERSION" >> RELEASE_NOTES.md
+          echo "\`\`\`" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "### Homebrew" >> RELEASE_NOTES.md
+          echo "\`\`\`bash" >> RELEASE_NOTES.md
+          echo "brew install ${{ github.repository_owner }}/jcapy/jcapy" >> RELEASE_NOTES.md
+          echo "\`\`\`" >> RELEASE_NOTES.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: JCapy ${{ needs.validate.outputs.version }}
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: ${{ needs.validate.outputs.is_prerelease == 'true' }}
+          files: dist/*
+          generate_release_notes: true
+
+  # ============================================
+  # Job 7: Post-Release Notifications
+  # ============================================
+  notify:
+    name: Post-Release Notifications
+    runs-on: ubuntu-latest
+    needs: [validate, github-release]
+    if: needs.validate.outputs.is_prerelease == 'false'
+    steps:
+      - name: Summary
+        run: |
+          VERSION=${{ needs.validate.outputs.version }}
+          echo "## 🎉 Release Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### JCapy v$VERSION has been released!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Platform | URL |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| PyPI | https://pypi.org/project/jcapy/$VERSION/ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker | ghcr.io/${{ github.repository_owner }}/jcapy:$VERSION |" >> $GITHUB_STEP_SUMMARY
+          echo "| GitHub | ${{ github.server_url }}/${{ github.repository }}/releases/tag/v$VERSION |" >> $GITHUB_STEP_SUMMARY

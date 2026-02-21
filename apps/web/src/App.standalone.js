@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Shield, Radio, Activity, Terminal, Zap, Power, AlertTriangle, RefreshCcw, Check, X, ShieldAlert, Cpu, Link, Unlink, Database } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Shield, Radio, Activity, Terminal, Zap, Power, AlertTriangle, RefreshCcw, Check, X, ShieldAlert, Cpu, Link, Unlink, Database, Send, Play, User, Settings, Cpu as CpuIcon, HardDrive, Clock, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WebSocketBridge } from 'bridge-service';
 
@@ -8,7 +8,23 @@ function App() {
    const [events, setEvents] = useState([]);
    const [activeIntervention, setActiveIntervention] = useState(null);
    const [linkStatus, setLinkStatus] = useState('OFFLINE');
+   const [commandInput, setCommandInput] = useState('');
+   const [terminalLines, setTerminalLines] = useState([]);
+   const [persona, setPersona] = useState('developer');
+   const [mode, setMode] = useState('NORMAL');
+   const [commandHistory, setCommandHistory] = useState([]);
+   const [historyIndex, setHistoryIndex] = useState(-1);
+   const [systemStats, setSystemStats] = useState({ cpu: 0, memory: 0, tasks: 0, uptime: '0s' });
    const bridgeRef = useRef(null);
+   const terminalRef = useRef(null);
+   const inputRef = useRef(null);
+
+   // Auto-scroll terminal
+   useEffect(() => {
+      if (terminalRef.current) {
+         terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+      }
+   }, [terminalLines]);
 
    useEffect(() => {
       if (!bridgeRef.current) {
@@ -18,10 +34,8 @@ function App() {
                return;
             }
 
-            // Handle trajectory events with virtualization (Frontend Guardrail)
             setEvents(prev => {
                const next = [...prev, event];
-               // Limit to last 100 events for UI performance
                return next.length > 100 ? next.slice(-100) : next;
             });
 
@@ -34,207 +48,356 @@ function App() {
       return () => bridgeRef.current?.stop();
    }, []);
 
-   const toggleKillSwitch = () => {
-      setIsHalted(!isHalted);
+   // Handle events from TUI
+   useEffect(() => {
+      if (!bridgeRef.current) return;
+      
+      const originalHandler = bridgeRef.current.onEvent;
+      bridgeRef.current.onEvent = (event) => {
+         if (originalHandler) originalHandler(event);
+         
+         // Terminal output
+         if (event.type === 'TERMINAL_OUTPUT' || event.topic === 'TERMINAL_OUTPUT') {
+            const line = event.line || event.data?.line || '';
+            if (line) {
+               setTerminalLines(prev => {
+                  const next = [...prev, line];
+                  return next.length > 500 ? next.slice(-500) : next;
+               });
+            }
+         }
+         
+         // Mode changes
+         if (event.type === 'MODE_CHANGED' || event.topic === 'MODE_CHANGED') {
+            setMode(event.mode || event.data?.mode || 'NORMAL');
+            if (event.persona || event.data?.persona) {
+               setPersona(event.persona || event.data?.persona);
+            }
+         }
+         
+         // Commands
+         if (event.type === 'COMMAND_EXECUTED' || event.topic === 'COMMAND_EXECUTED') {
+            const cmd = event.command || event.data?.command || '';
+            if (cmd) {
+               setTerminalLines(prev => [...prev, `❯ ${cmd}`]);
+            }
+         }
+         
+         // Heartbeat with stats
+         if (event.type === 'HEARTBEAT' || event.topic === 'HEARTBEAT') {
+            setLinkStatus('SYNCHRONIZED');
+            const status = event.status || event.data?.status || {};
+            if (status.tasks_completed !== undefined) {
+               setSystemStats(prev => ({
+                  ...prev,
+                  tasks: status.tasks_completed,
+                  uptime: status.uptime_human || prev.uptime
+               }));
+            }
+         }
+      };
+   }, []);
+
+   const executeCommand = useCallback(() => {
+      if (!commandInput.trim()) return;
+      
+      setTerminalLines(prev => [...prev, `❯ ${commandInput}`]);
+      setCommandHistory(prev => [...prev, commandInput]);
+      setHistoryIndex(-1);
+      
+      if (bridgeRef.current) {
+         bridgeRef.current.send({
+            type: 'EXECUTE_COMMAND',
+            command: commandInput
+         });
+      }
+      
+      setCommandInput('');
+   }, [commandInput]);
+
+   const handleKeyDown = (e) => {
+      if (e.key === 'Enter') {
+         executeCommand();
+      } else if (e.key === 'ArrowUp') {
+         e.preventDefault();
+         if (commandHistory.length > 0) {
+            const newIndex = historyIndex < commandHistory.length - 1 ? historyIndex + 1 : historyIndex;
+            setHistoryIndex(newIndex);
+            setCommandInput(commandHistory[commandHistory.length - 1 - newIndex] || '');
+         }
+      } else if (e.key === 'ArrowDown') {
+         e.preventDefault();
+         if (historyIndex > 0) {
+            const newIndex = historyIndex - 1;
+            setHistoryIndex(newIndex);
+            setCommandInput(commandHistory[commandHistory.length - 1 - newIndex] || '');
+         } else {
+            setHistoryIndex(-1);
+            setCommandInput('');
+         }
+      }
    };
+
+   const toggleKillSwitch = () => setIsHalted(!isHalted);
 
    const handleIntervention = (approved) => {
       if (!activeIntervention) return;
-
-      // Send approval back via WebSocket
-      bridgeRef.current.send({
+      bridgeRef.current?.send({
          type: 'APPROVE_ACTION',
          id: activeIntervention.id,
          approved: approved
       });
-
       setActiveIntervention(null);
    };
 
-   return React.createElement('div', { className: 'min-h-screen w-full flex flex-col p-8 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-blue-900/20 via-slate-900 to-slate-950 font-sans' }, [
+   const switchPersona = (newPersona) => {
+      setPersona(newPersona);
+      bridgeRef.current?.send({
+         type: 'SWITCH_PERSONA',
+         persona: newPersona
+      });
+   };
 
-      // System Halted Overlay
-      React.createElement(AnimatePresence, { key: 'halted-presence' },
-         isHalted && React.createElement(motion.div, {
-            initial: { opacity: 0 },
-            animate: { opacity: 1 },
-            exit: { opacity: 0 },
-            className: 'fixed inset-0 z-[100] flex items-center justify-center bg-red-950/40 backdrop-blur-md'
-         }, [
-            React.createElement(motion.div, {
-               initial: { scale: 0.9, y: 20 },
-               animate: { scale: 1, y: 0 },
-               className: 'bg-red-600/10 border-2 border-red-500/50 p-12 rounded-3xl text-center max-w-lg shadow-[0_0_100px_rgba(239,68,68,0.2)]'
-            }, [
-               React.createElement(AlertTriangle, { className: 'text-red-500 w-24 h-24 mx-auto mb-6 animate-pulse' }),
-               React.createElement('h1', { className: 'text-5xl font-black text-red-500 mb-4 tracking-tighter' }, 'SYSTEM HALTED'),
-               React.createElement('p', { className: 'text-red-200/60 mb-8 font-mono text-sm' }, 'Manual intervention triggered. All agentic processes suspended.'),
+   const personas = ['developer', 'devops', 'designer', 'architect'];
+
+   // Simulate system stats for demo
+   useEffect(() => {
+      const interval = setInterval(() => {
+         setSystemStats(prev => ({
+            ...prev,
+            cpu: Math.floor(Math.random() * 40) + 10,
+            memory: Math.floor(Math.random() * 30) + 40,
+         }));
+      }, 3000);
+      return () => clearInterval(interval);
+   }, []);
+
+   return React.createElement('div', { className: 'min-h-screen w-full flex flex-col bg-slate-950 font-mono' }, [
+      
+      // Header
+      React.createElement('header', { key: 'header', className: 'flex-shrink-0 border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm' }, [
+         React.createElement('div', { className: 'flex items-center justify-between px-6 py-3' }, [
+            React.createElement('div', { className: 'flex items-center space-x-4' }, [
+               React.createElement(Shield, { className: 'text-cyan-400 w-6 h-6' }),
+               React.createElement('div', null, [
+                  React.createElement('h1', { className: 'text-lg font-bold text-white' }, 'JCapy Control Plane'),
+                  React.createElement('p', { className: 'text-xs text-slate-500' }, 'v4.1.8 • STATION-01')
+               ])
+            ]),
+            React.createElement('div', { className: 'flex items-center space-x-3' }, [
+               // Connection Status
+               React.createElement('div', { className: `flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs ${linkStatus === 'SYNCHRONIZED' ? 'bg-cyan-500/10 text-cyan-400' : 'bg-red-500/10 text-red-400'}` }, [
+                  React.createElement(linkStatus === 'SYNCHRONIZED' ? Link : Unlink, { size: 14 }),
+                  React.createElement('span', null, linkStatus)
+               ]),
+               // Kill Switch
                React.createElement('button', {
                   onClick: toggleKillSwitch,
-                  className: 'flex items-center mx-auto space-x-2 bg-red-500 hover:bg-red-400 text-white px-8 py-4 rounded-xl font-bold transition-all shadow-lg hover:shadow-red-500/40'
+                  className: 'flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors text-xs'
                }, [
-                  React.createElement(RefreshCcw, { className: 'w-5 h-5' }),
-                  React.createElement('span', null, 'RESET CIRCUIT')
+                  React.createElement(Power, { size: 14 }),
+                  React.createElement('span', null, 'HALT')
                ])
-            ])
-         ])
-      ),
-
-      // Header
-      React.createElement('header', { key: 'header', className: 'flex justify-between items-center mb-12' }, [
-         React.createElement('div', { className: 'flex items-center space-x-3' }, [
-            React.createElement(Shield, { className: 'text-primary w-8 h-8' }),
-            React.createElement('div', null, [
-               React.createElement('h1', { className: 'text-2xl font-bold tracking-tight text-white' }, 'JCapy Control Plane'),
-               React.createElement('p', { className: 'text-[10px] text-slate-500 font-mono tracking-widest' }, 'STATION // ALPHA-01')
-            ])
-         ]),
-         React.createElement('div', { className: 'flex items-center space-x-4' }, [
-            React.createElement('div', { className: `flex items-center space-x-2 text-xs px-4 py-1.5 rounded-full border transition-all ${linkStatus === 'SYNCHRONIZED' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}` }, [
-               React.createElement(linkStatus === 'SYNCHRONIZED' ? Link : Unlink, { size: 14 }),
-               React.createElement('span', { className: 'font-semibold tracking-wide' }, `ORBITAL ${linkStatus}`)
-            ]),
-            React.createElement('div', { className: `flex items-center space-x-2 text-xs px-4 py-1.5 rounded-full border border-blue-500/10 bg-blue-500/5 text-blue-400/60` }, [
-               React.createElement(Database, { size: 14 }),
-               React.createElement('span', { className: 'font-semibold tracking-wide uppercase' }, 'Audit Log Persisted')
-            ]),
-            React.createElement('button', {
-               onClick: toggleKillSwitch,
-               className: 'group flex items-center space-x-2 bg-red-600/10 hover:bg-red-600/30 text-red-500 px-4 py-1.5 rounded-full border border-red-500/30 transition-all font-black text-[10px] uppercase tracking-widest ring-1 ring-red-500/20 hover:ring-red-500/50'
-            }, [
-               React.createElement(Power, { className: 'w-3 h-3 group-hover:animate-pulse' }),
-               React.createElement('span', null, 'Kill Switch')
             ])
          ])
       ]),
 
       // Main Content
-      React.createElement('main', { key: 'main', className: 'flex-1 grid grid-cols-12 gap-8 h-[calc(100vh-200px)]' }, [
-         // Left Sidebar: Capability Manifest
-         React.createElement('aside', { key: 'sidebar', className: 'col-span-3 flex flex-col space-y-6 overflow-y-auto pr-2' }, [
-            React.createElement('div', { className: 'glass-card border-white/5 bg-slate-400/5' }, [
-               React.createElement('h2', { className: 'text-[10px] font-black text-slate-500 mb-6 flex items-center tracking-[4px]' }, [
-                  React.createElement(Zap, { size: 12, className: 'mr-2 text-blue-400' }),
-                  'CAPABILITY MANIFEST'
+      React.createElement('main', { key: 'main', className: 'flex-1 flex overflow-hidden' }, [
+         
+         // Left Sidebar - Stats & Controls
+         React.createElement('aside', { key: 'sidebar', className: 'w-64 flex-shrink-0 border-r border-slate-800 bg-slate-900/30 p-4 flex flex-col space-y-4 overflow-y-auto' }, [
+            
+            // System Stats
+            React.createElement('div', { className: 'bg-slate-800/50 rounded-lg p-3' }, [
+               React.createElement('h3', { className: 'text-xs font-bold text-slate-400 mb-3 flex items-center' }, [
+                  React.createElement(CpuIcon, { size: 12, className: 'mr-2' }),
+                  'SYSTEM STATUS'
                ]),
-               React.createElement('div', { className: 'space-y-4' }, [
-                  { label: 'File System (READ)', status: 'ACTIVE', color: 'text-green-400', bg: 'bg-green-400/10' },
-                  { label: 'File System (WRITE)', status: activeIntervention ? 'INTERVENING' : 'LOCKED', color: activeIntervention ? 'text-amber-500 animate-pulse' : 'text-amber-400', bg: activeIntervention ? 'bg-amber-500/20' : 'bg-amber-400/10' },
-                  { label: 'Terminal Access', status: 'ACTIVE', color: 'text-green-400', bg: 'bg-green-400/10' },
-                  { label: 'Network Ingress', status: 'BLOCKED', color: 'text-red-400', bg: 'bg-red-400/10' }
-               ].map((item, i) =>
-                  React.createElement('div', { key: i, className: `flex justify-between items-center p-3 rounded-lg bg-white/5 border border-white/5 transition-all ${item.status === 'INTERVENING' ? 'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : ''}` }, [
-                     React.createElement('span', { className: 'text-xs text-slate-300 font-medium' }, item.label),
-                     React.createElement('span', { className: `text-[9px] font-black px-2 py-0.5 rounded ${item.bg} ${item.color}` }, item.status)
+               React.createElement('div', { className: 'space-y-2' }, [
+                  React.createElement('div', { className: 'flex justify-between text-xs' }, [
+                     React.createElement('span', { className: 'text-slate-500' }, 'CPU'),
+                     React.createElement('span', { className: 'text-cyan-400' }, `${systemStats.cpu}%`)
+                  ]),
+                  React.createElement('div', { className: 'h-1 bg-slate-700 rounded-full overflow-hidden' }, [
+                     React.createElement('div', { className: 'h-full bg-cyan-500 transition-all', style: { width: `${systemStats.cpu}%` } })
+                  ]),
+                  React.createElement('div', { className: 'flex justify-between text-xs mt-2' }, [
+                     React.createElement('span', { className: 'text-slate-500' }, 'Memory'),
+                     React.createElement('span', { className: 'text-green-400' }, `${systemStats.memory}%`)
+                  ]),
+                  React.createElement('div', { className: 'h-1 bg-slate-700 rounded-full overflow-hidden' }, [
+                     React.createElement('div', { className: 'h-full bg-green-500 transition-all', style: { width: `${systemStats.memory}%` } })
+                  ]),
+                  React.createElement('div', { className: 'flex justify-between text-xs mt-2' }, [
+                     React.createElement('span', { className: 'text-slate-500' }, 'Tasks'),
+                     React.createElement('span', { className: 'text-yellow-400' }, systemStats.tasks)
+                  ]),
+                  React.createElement('div', { className: 'flex justify-between text-xs' }, [
+                     React.createElement('span', { className: 'text-slate-500' }, 'Uptime'),
+                     React.createElement('span', { className: 'text-slate-300' }, systemStats.uptime)
                   ])
-               ))
+               ])
             ]),
 
-            // Active Agent Info
-            React.createElement('div', { className: 'glass-card border-white/5 bg-blue-500/5' }, [
-               React.createElement('h2', { className: 'text-[10px] font-black text-slate-500 mb-4 flex items-center tracking-[4px]' }, [
-                  React.createElement(Cpu, { size: 12, className: 'mr-2 text-blue-400' }),
-                  'ACTIVE AGENT'
+            // Persona Switcher
+            React.createElement('div', { className: 'bg-slate-800/50 rounded-lg p-3' }, [
+               React.createElement('h3', { className: 'text-xs font-bold text-slate-400 mb-3 flex items-center' }, [
+                  React.createElement(User, { size: 12, className: 'mr-2' }),
+                  'PERSONA'
                ]),
-               React.createElement('div', { className: 'flex items-center space-x-3 mb-4' }, [
-                  React.createElement('div', { className: 'w-10 h-10 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center' }, [
-                     React.createElement(Terminal, { className: 'text-blue-400 w-6 h-6' })
-                  ]),
-                  React.createElement('div', null, [
-                     React.createElement('p', { className: 'text-xs font-bold' }, 'ClawEngine.v2'),
-                     React.createElement('p', { className: 'text-[10px] text-slate-500 font-mono' }, 'MODEL // CLAUDE-02')
-                  ])
-               ]),
-               React.createElement('div', { className: 'w-full h-1 bg-white/5 rounded-full overflow-hidden' }, [
-                  React.createElement(motion.div, {
-                     animate: { width: ['0%', '70%', '40%', '90%'] },
-                     transition: { repeat: Infinity, duration: 4 },
-                     className: 'h-full bg-blue-500'
-                  })
+               React.createElement('div', { className: 'space-y-1' }, 
+                  personas.map(p => 
+                     React.createElement('button', {
+                        key: p,
+                        onClick: () => switchPersona(p),
+                        className: `w-full text-left text-xs px-2 py-1.5 rounded ${persona === p ? 'bg-cyan-500/20 text-cyan-400' : 'text-slate-400 hover:bg-slate-700/50'}`
+                     }, [
+                        React.createElement(ChevronRight, { size: 12, className: 'inline mr-1' }),
+                        p.charAt(0).toUpperCase() + p.slice(1)
+                     ])
+                  )
+               )
+            ]),
+
+            // Mode Indicator
+            React.createElement('div', { className: 'bg-slate-800/50 rounded-lg p-3' }, [
+               React.createElement('h3', { className: 'text-xs font-bold text-slate-400 mb-2' }, 'MODE'),
+               React.createElement('div', { className: `text-sm font-bold ${mode === 'INSERT' ? 'text-magenta-400' : mode === 'VISUAL' ? 'text-yellow-400' : 'text-cyan-400'}` }, 
+                  `⬤ ${mode}`
+               )
+            ]),
+
+            // Quick Actions
+            React.createElement('div', { className: 'bg-slate-800/50 rounded-lg p-3' }, [
+               React.createElement('h3', { className: 'text-xs font-bold text-slate-400 mb-3' }, 'QUICK ACTIONS'),
+               React.createElement('div', { className: 'space-y-1' }, [
+                  React.createElement('button', {
+                     onClick: () => { setCommandInput('jcapy doctor'); executeCommand(); },
+                     className: 'w-full text-left text-xs px-2 py-1.5 rounded text-slate-400 hover:bg-slate-700/50'
+                  }, '🏥 Run Doctor'),
+                  React.createElement('button', {
+                     onClick: () => { setCommandInput('jcapy sync'); executeCommand(); },
+                     className: 'w-full text-left text-xs px-2 py-1.5 rounded text-slate-400 hover:bg-slate-700/50'
+                  }, '🔄 Sync'),
+                  React.createElement('button', {
+                     onClick: () => { setCommandInput('jcapy status'); executeCommand(); },
+                     className: 'w-full text-left text-xs px-2 py-1.5 rounded text-slate-400 hover:bg-slate-700/50'
+                  }, '📊 Status')
                ])
             ])
          ]),
 
-         // Center Column: Reasoning Stream
-         React.createElement('section', { key: 'stream', className: 'col-span-9 flex flex-col' }, [
-            React.createElement('div', { className: 'glass-card flex-1 min-h-[600px] flex flex-col overflow-hidden' }, [
-               React.createElement('div', { className: 'flex justify-between items-center mb-6' }, [
-                  React.createElement('h2', { className: 'text-[10px] font-black text-slate-500 flex items-center tracking-[4px]' }, [
-                     React.createElement(Terminal, { size: 12, className: 'mr-2 text-blue-400' }),
-                     'REASONING STREAM (ASI-10)'
-                  ]),
-                  React.createElement('div', { className: 'flex items-center space-x-2' }, [
-                     React.createElement('span', { className: 'text-[9px] text-slate-500 font-mono' }, 'v2.0.0-ORBITAL'),
-                     React.createElement(Radio, { size: 12, className: 'text-primary animate-pulse' })
-                  ])
+         // Center - Terminal
+         React.createElement('div', { key: 'terminal', className: 'flex-1 flex flex-col min-w-0' }, [
+            // Terminal Header
+            React.createElement('div', { className: 'flex-shrink-0 border-b border-slate-800 bg-slate-900/30 px-4 py-2 flex items-center justify-between' }, [
+               React.createElement('div', { className: 'flex items-center space-x-2' }, [
+                  React.createElement(Terminal, { size: 16, className: 'text-cyan-400' }),
+                  React.createElement('span', { className: 'text-sm font-bold text-white' }, 'TERMINAL'),
+                  React.createElement('span', { className: 'text-xs text-slate-500' }, `(${terminalLines.length} lines)`)
                ]),
+               React.createElement('button', {
+                  onClick: () => setTerminalLines([]),
+                  className: 'text-xs text-slate-500 hover:text-slate-300'
+               }, 'Clear')
+            ]),
+            
+            // Terminal Output
+            React.createElement('div', { 
+               ref: terminalRef,
+               className: 'flex-1 overflow-y-auto bg-black/40 p-4 font-mono text-sm'
+            }, [
+               terminalLines.length === 0 && React.createElement('div', { className: 'flex flex-col items-center justify-center h-full text-slate-600' }, [
+                  React.createElement(Terminal, { size: 48, className: 'mb-4 opacity-20' }),
+                  React.createElement('p', null, 'Terminal output will appear here...'),
+                  React.createElement('p', { className: 'text-xs mt-2' }, 'Start JCapy TUI to see live output')
+               ]),
+               terminalLines.map((line, i) => 
+                  React.createElement('div', { 
+                     key: i, 
+                     className: `whitespace-pre-wrap ${line.startsWith('❯') ? 'text-cyan-400' : line.startsWith('✓') || line.startsWith('✔') ? 'text-green-400' : line.startsWith('✗') || line.startsWith('✘') || line.startsWith('Error') ? 'text-red-400' : 'text-slate-300'}`
+                  }, line)
+               )
+            ]),
+            
+            // Command Input
+            React.createElement('div', { className: 'flex-shrink-0 border-t border-slate-800 bg-slate-900/50 p-3' }, [
+               React.createElement('div', { className: 'flex items-center space-x-2' }, [
+                  React.createElement('span', { className: 'text-cyan-400' }, '❯'),
+                  React.createElement('input', {
+                     ref: inputRef,
+                     type: 'text',
+                     value: commandInput,
+                     onChange: (e) => setCommandInput(e.target.value),
+                     onKeyDown: handleKeyDown,
+                     placeholder: 'Enter command...',
+                     className: 'flex-1 bg-transparent border-none outline-none text-white placeholder-slate-600 text-sm'
+                  }),
+                  React.createElement('button', {
+                     onClick: executeCommand,
+                     className: 'px-3 py-1 bg-cyan-500/20 text-cyan-400 rounded hover:bg-cyan-500/30 transition-colors text-xs'
+                  }, [
+                     React.createElement(Send, { size: 14 })
+                  ])
+               ])
+            ])
+         ]),
 
-               React.createElement('div', { className: 'flex-1 border border-white/5 rounded-2xl bg-black/40 p-6 font-mono text-sm overflow-y-auto space-y-6 custom-scrollbar' }, [
-                  events.length === 0 && React.createElement('div', { className: 'flex flex-col items-center justify-center h-full opacity-20' }, [
-                     React.createElement(Activity, { size: 48, className: 'mb-4' }),
-                     React.createElement('p', null, 'Waiting for trajectory frames...')
-                  ]),
-                  events.map((event, i) => {
-                     if (event.type === 'INTERVENTION') {
-                        return React.createElement(motion.div, {
-                           key: i,
-                           initial: { opacity: 0, scale: 0.98 },
-                           animate: { opacity: 1, scale: 1 },
-                           className: 'p-6 bg-amber-500/10 rounded-2xl border-2 border-amber-500/30 shadow-[0_0_30px_rgba(245,158,11,0.1)]'
-                        }, [
-                           React.createElement('div', { className: 'flex items-center space-x-2 text-amber-500 mb-4' }, [
-                              React.createElement(ShieldAlert, { size: 20 }),
-                              React.createElement('span', { className: 'font-black text-xs uppercase tracking-widest' }, 'Intervention Required: Tool Proxy Boundary')
-                           ]),
-                           React.createElement('p', { className: 'text-sm text-amber-200/80 mb-4' }, `The agent is requesting to execute ${event.tool} on ${event.path}`),
+         // Right Sidebar - Events
+         React.createElement('aside', { key: 'events', className: 'w-80 flex-shrink-0 border-l border-slate-800 bg-slate-900/30 flex flex-col' }, [
+            React.createElement('div', { className: 'flex-shrink-0 border-b border-slate-800 px-4 py-2' }, [
+               React.createElement('h3', { className: 'text-sm font-bold text-white flex items-center' }, [
+                  React.createElement(Activity, { size: 16, className: 'mr-2 text-cyan-400' }),
+                  'EVENT STREAM'
+               ])
+            ]),
+            React.createElement('div', { className: 'flex-1 overflow-y-auto p-3 space-y-2' }, [
+               events.length === 0 && React.createElement('div', { className: 'text-center text-slate-600 py-8' }, [
+                  React.createElement('p', { className: 'text-xs' }, 'No events yet'),
+                  React.createElement('p', { className: 'text-xs mt-1' }, 'Events from TUI will appear here')
+               ]),
+               events.slice(-20).map((event, i) => 
+                  React.createElement('div', { 
+                     key: i,
+                     className: `p-2 rounded text-xs ${event.type === 'THOUGHT' ? 'bg-blue-500/10 border-l-2 border-blue-500' : 'bg-slate-800/50'}`
+                  }, [
+                     React.createElement('div', { className: 'flex justify-between mb-1' }, [
+                        React.createElement('span', { className: 'font-bold text-slate-400' }, event.type || 'EVENT'),
+                        React.createElement('span', { className: 'text-slate-600' }, event.timestamp || '')
+                     ]),
+                     React.createElement('p', { className: 'text-slate-300' }, event.message || JSON.stringify(event.data || {}).slice(0, 50))
+                  ])
+               )
+            ])
+         ])
+      ]),
 
-                           // Diff Block
-                           React.createElement('div', { className: 'bg-black/40 rounded-xl p-4 border border-white/5 mb-6 overflow-x-auto' }, [
-                              React.createElement('pre', { className: 'text-[11px] leading-relaxed' },
-                                 (event.diff || '').split('\n').map((line, li) =>
-                                    React.createElement('div', { key: li, className: line.startsWith('+') ? 'text-green-400 bg-green-400/10' : line.startsWith('-') ? 'text-red-400 bg-red-400/10' : 'text-slate-400' }, line)
-                                 )
-                              )
-                           ]),
-
-                           // Action Buttons
-                           activeIntervention?.id === event.id ? React.createElement('div', { className: 'flex space-x-3' }, [
-                              React.createElement('button', {
-                                 onClick: () => handleIntervention(true),
-                                 className: 'flex-1 flex items-center justify-center space-x-2 bg-green-500/20 hover:bg-green-500 text-green-400 hover:text-white border border-green-500/30 p-3 rounded-xl font-bold transition-all'
-                              }, [
-                                 React.createElement(Check, { size: 16 }),
-                                 React.createElement('span', null, 'APPROVE')
-                              ]),
-                              React.createElement('button', {
-                                 onClick: () => handleIntervention(false),
-                                 className: 'flex-1 flex items-center justify-center space-x-2 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/30 p-3 rounded-xl font-bold transition-all'
-                              }, [
-                                 React.createElement(X, { size: 16 }),
-                                 React.createElement('span', null, 'REJECT')
-                              ])
-                           ]) : React.createElement('p', { className: 'text-xs text-slate-500 italic' }, 'Handled by Operator')
-                        ]);
-                     }
-
-                     return React.createElement(motion.div, {
-                        key: i,
-                        initial: { opacity: 0, x: -10 },
-                        animate: { opacity: 1, x: 0 },
-                        className: `p-4 rounded-xl border relative overflow-hidden ${event.type === 'THOUGHT' ? 'bg-blue-500/5 border-blue-500/10' : 'bg-slate-500/5 border-white/5'}`
-                     }, [
-                        React.createElement('div', { className: `absolute left-0 top-0 bottom-0 w-1 ${event.type === 'THOUGHT' ? 'bg-blue-500' : 'bg-slate-700'}` }),
-                        React.createElement('div', { className: 'flex justify-between mb-2' }, [
-                           React.createElement('span', { className: `text-[10px] font-black uppercase tracking-widest ${event.type === 'THOUGHT' ? 'text-blue-400/60' : 'text-slate-500'}` }, event.type),
-                           React.createElement('span', { className: 'text-[10px] font-mono text-slate-600' }, event.timestamp || '00:00:00')
-                        ]),
-                        React.createElement('p', { className: 'text-slate-300 leading-relaxed' }, event.message)
-                     ]);
-                  })
+      // Halted Overlay
+      React.createElement(AnimatePresence, { key: 'halted' },
+         isHalted && React.createElement(motion.div, {
+            initial: { opacity: 0 },
+            animate: { opacity: 1 },
+            className: 'fixed inset-0 z-50 flex items-center justify-center bg-red-950/80 backdrop-blur-sm'
+         }, [
+            React.createElement(motion.div, {
+               initial: { scale: 0.9 },
+               animate: { scale: 1 },
+               className: 'bg-slate-900 border-2 border-red-500 p-8 rounded-2xl text-center max-w-md'
+            }, [
+               React.createElement(AlertTriangle, { className: 'text-red-500 w-16 h-16 mx-auto mb-4' }),
+               React.createElement('h2', { className: 'text-3xl font-black text-red-500 mb-2' }, 'SYSTEM HALTED'),
+               React.createElement('p', { className: 'text-slate-400 mb-6' }, 'All agentic processes suspended'),
+               React.createElement('button', {
+                  onClick: toggleKillSwitch,
+                  className: 'px-6 py-3 bg-red-500 text-white rounded-lg font-bold hover:bg-red-400 transition-colors'
+               }, [
+                  React.createElement(RefreshCcw, { size: 16, className: 'inline mr-2' }),
+                  'RESET'
                ])
             ])
          ])
-      ])
+      )
    ]);
 }
 

@@ -1,5 +1,8 @@
 # JCapy Completion Tasks
 
+> ⚠️ **See `MASTER_STATUS.md` for the authoritative project status**
+> This file tracks granular tasks only.
+
 > **Purpose**: Track remaining work to reach TRUE 100% completion
 > **Created**: 2026-02-20
 > **Status**: 🔴 IN PROGRESS

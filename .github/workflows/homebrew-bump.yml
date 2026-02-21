@@ -1,0 +1,125 @@
+# JCapy Homebrew Formula Bump Workflow
+# Automatically updates the Homebrew tap formula on release
+
+name: Homebrew Bump
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to bump to (e.g., 4.1.8)'
+        required: true
+
+jobs:
+  bump-formula:
+    name: Bump Homebrew Formula
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION=${{ inputs.version }}
+          else
+            VERSION=${{ github.event.release.tag_name }}
+            VERSION=${VERSION#v}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Bumping to version: $VERSION"
+
+      - name: Checkout tap repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/homebrew-jcapy
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          fetch-depth: 0
+
+      - name: Calculate SHA256
+        id: sha
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          URL="https://github.com/${{ github.repository_owner }}/JCapy/archive/refs/tags/v${VERSION}.tar.gz"
+          
+          echo "⏳ Waiting for GitHub to generate tarball..."
+          sleep 10
+          
+          # Retry logic for tarball availability
+          for i in {1..5}; do
+            SHA=$(curl -sL "$URL" | shasum -a 256 | cut -d ' ' -f 1)
+            if [ -n "$SHA" ] && [ "$SHA" != "da39a3ee5e6b4b0d3255bfef95601890afd80709" ]; then
+              break
+            fi
+            echo "Retry $i/5..."
+            sleep 5
+          done
+          
+          if [ -z "$SHA" ] || [ "$SHA" == "da39a3ee5e6b4b0d3255bfef95601890afd80709" ]; then
+            echo "❌ Failed to download tarball or calculate SHA256"
+            exit 1
+          fi
+          
+          echo "sha256=$SHA" >> $GITHUB_OUTPUT
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "✅ SHA256: $SHA"
+
+      - name: Update formula
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          SHA=${{ steps.sha.outputs.sha }}
+          URL=${{ steps.sha.outputs.url }}
+          
+          # Find and update formula file
+          FORMULA="jcapy.rb"
+          if [ ! -f "$FORMULA" ]; then
+            FORMULA="Formula/jcapy.rb"
+          fi
+          
+          if [ ! -f "$FORMULA" ]; then
+            echo "❌ Formula file not found!"
+            exit 1
+          fi
+          
+          echo "📝 Updating $FORMULA..."
+          
+          # Update URL and SHA256
+          sed -i "s|url .*|url \"$URL\"|" "$FORMULA"
+          sed -i "s|sha256 .*|sha256 \"$SHA\"|" "$FORMULA"
+          
+          echo "✅ Formula updated"
+          cat "$FORMULA"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          commit-message: "Bump jcapy to v${{ steps.version.outputs.version }}"
+          title: "Bump jcapy to v${{ steps.version.outputs.version }}"
+          body: |
+            ## Homebrew Formula Update
+            
+            Bumping jcapy to version `${{ steps.version.outputs.version }}`
+            
+            ### Details
+            - **Version:** ${{ steps.version.outputs.version }}
+            - **URL:** ${{ steps.sha.outputs.url }}
+            - **SHA256:** ${{ steps.sha.outputs.sha }}
+            
+            ---
+            *Automated by [GitHub Actions](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*
+          branch: bump-jcapy-${{ steps.version.outputs.version }}
+          base: main
+          labels: |
+            automerge
+            release
+
+      - name: Output summary
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          echo "## 🍺 Homebrew Formula Updated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Version: \`$VERSION\`" >> $GITHUB_STEP_SUMMARY
+          echo "SHA256: \`${{ steps.sha.outputs.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "A PR has been created in the homebrew-jcapy repository." >> $GITHUB_STEP_SUMMARY

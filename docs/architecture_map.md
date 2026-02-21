@@ -6,10 +6,17 @@ JCapy is a unified "Knowledge Operating System" designed for the "One-Army" prot
 
 ```mermaid
 graph TD
-    subgraph ORCHESTRATION ["Orchestration Layer"]
+    subgraph CLIENTS ["Clients (Stateless)"]
         CLI["main.py (CLI)"]
         TUI["ui/app.py (Textual TUI)"]
-        BOOT["core/bootstrap.py"]
+        WEB["Web Control Plane (Planned)"]
+    end
+
+    subgraph BRAIN ["JCapy Brain (Daemon)"]
+        SERVICE["core/service.py (Service Layer)"]
+        DAEMON["daemon/server.py (jcapyd)"]
+        BUS["core/bus.py (Event Bus)"]
+        RPC["gRPC/ZeroMQ Interface"]
     end
 
     subgraph ENGINE ["Shared Engine"]
@@ -19,45 +26,44 @@ graph TD
     end
 
     subgraph COMMANDS ["Command Frameworks"]
-        PROJ["commands/project.py (init, deploy)"]
-        SKILL["commands/frameworks.py (harvest, apply)"]
-        BRAIN["commands/brain.py (personas)"]
-        SYNC["commands/sync.py (git sync)"]
-    end
-
-    subgraph UI ["TUI Components"]
-        SCR["ui/screens (Dash, Manage, Harvest)"]
-        WDG["ui/widgets (HUD, Console)"]
-        CSS["ui/styles.tcss (Glassmorphism)"]
+        PROJ["commands/project.py"]
+        SKILL["commands/frameworks.py"]
+        BRAIN_CMD["commands/brain.py"]
     end
 
     subgraph BRAIN_LAYER ["Intelligence & Memory"]
         MEM["memory/ (Vector DB)"]
         MCP["mcp/ (System Tools)"]
-        UTIL["utils/ai.py (LLM Interface)"]
+        UTIL["utils/ai.py"]
     end
 
     %% Relationships
-    CLI --> REG
-    TUI --> SCR --> REG
-    REG --> BOOT
-    BOOT --> COMMANDS
-    COMMANDS --> CFG
-    COMMANDS --> HIST
-    TUI --> CSS
-    SCR --> WDG
+    CLI --> RPC
+    TUI --> RPC
+    WEB --> RPC
+    RPC --> DAEMON
+    DAEMON --> SERVICE
+    SERVICE --> REG
+    SERVICE --> BUS
+    REG --> ENGINE
+    SERVICE --> COMMANDS
     COMMANDS --> BRAIN_LAYER
-    UTIL --> BRAIN_LAYER
-    MEM --> BRAIN_LAYER
 ```
 
 ## 📋 Core Layers
 
-### 1. Orchestration Layer
-The entry points for JCapy. `main.py` handles direct CLI calls, while `JCapyApp` (Textual) provides the immersive terminal experience. `bootstrap.py` serves as the glue, discovery, and registration hub.
+### 1. Orchestration Layer (Clients)
+The stateless entry points for JCapy. `main.py` (CLI) and `JCapyApp` (TUI) now act as thin clients that communicate with the Brain via gRPC and ZeroMQ.
 
-### 2. Shared Engine (Command Registry)
-The `CommandRegistry` in `plugins.py` is the heart of JCapy. It handles:
+### 2. JCapy Brain (Service Layer)
+The `JCapyService` in `service.py` is the central nexus. It orchestrates:
+- **Command Dispatch**: Routing requests to the appropriate handlers.
+- **Log Virtualization**: Broadcasting real-time output via ZeroMQ.
+- **Event Bus**: Async event distribution across the entire system.
+- **Daemon Control**: `jcapyd` manages the background lifecycle and gRPC/ZMQ servers.
+
+### 3. Shared Engine
+The core discovery and configuration hub.
 - **Registration**: Mapping command names to Python functions.
 - **Piping**: Unix-style `|` logic between commands.
 - **Capturing**: Real-time output streaming from commands to the UI.

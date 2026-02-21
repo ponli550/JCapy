@@ -17,6 +17,7 @@ from jcapy.commands.theme import ThemeCommand
 from jcapy.commands.grep import GrepCommand
 from jcapy.commands.edit import EditCommand
 from jcapy.commands.version import run_version
+from jcapy.commands.daemon_cmd import register_parser as register_daemon_parser
 from jcapy.ui.ux.safety import get_undo_stack
 from jcapy.ui.ux.feedback import show_success, show_error
 from jcapy.config import get_active_library_path, load_config
@@ -213,6 +214,12 @@ def register_core_commands(registry):
     registry.register(EditCommand())
     registry.register("version", run_version, "Display version info")
 
+    # ══════════════════════════════════════════
+    # 🖥️  DAEMON (Background Service)
+    # ══════════════════════════════════════════
+
+    # Daemon commands are registered via configure_parsers hook
+    # The register_daemon_parser function adds subparsers directly
 
     # ══════════════════════════════════════════
     # 🔧  CONFIG OVERRIDES

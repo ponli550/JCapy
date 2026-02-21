@@ -82,7 +82,7 @@ class SkillRegistry:
 
     def _load_skill(self, skill_dir: str, manifest_path: str) -> Skill:
         with open(manifest_path, 'r') as f:
-            data = yaml.safe_load(f)
+            data = yaml.safe_load(f) or {}
 
         manifest = SkillManifest(
             name=data.get("name"),

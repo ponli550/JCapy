@@ -62,7 +62,7 @@ def get_api_key(provider):
     try:
         import dotenv
         dotenv.load_dotenv()
-    except ImportError:
+    except (ImportError, OSError):
         pass
 
     provider = provider.lower()
@@ -148,12 +148,12 @@ def get_task_file_path():
     config_path = CONFIG_MANAGER.get("paths.task_file")
     if config_path and os.path.exists(config_path):
         return config_path
-    
+
     # Check for local task.md in current project
     local_task = os.path.join(os.getcwd(), "task.md")
     if os.path.exists(local_task):
         return local_task
-    
+
     # Default to JCAPY_HOME
     default_path = os.path.join(JCAPY_HOME, "task.md")
     if not os.path.exists(default_path):

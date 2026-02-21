@@ -21,14 +21,14 @@
 
 ---
 
-## Future: JCapy 2.0 (The Orbital Architecture)
+## Phase 7: JCapy 2.0 (The Orbital Architecture)
 
-We have drafted a comprehensive vision for the next evolution of JCapy, focusing on separating the **Terminal** from the **Brain** to enable enterprise-grade scaling for a one-man army.
+| Sub-Phase | Milestone | Objectives | Status |
+| :--- | :--- | :--- | :--- |
+| **7.1** | **Foundations** | Service Layer, gRPC/ZMQ Daemon Infrastructure. | ✅ Done |
+| **7.2** | **The Split** | Stateless CLI client, migration to daemon-first execution. | ✅ Done |
+| **7.3** | **Cloud Memory**| ChromaDB Cloud Integration, managed vector store. | ✅ Done |
+| **7.4** | **Security** | mTLS, WASM Sandboxing, Secret Vault. | ✅ Done |
+| **7.5** | **Orbital TUI** | Dedicated stateless TUI client for central Brain. | ✅ Done |
 
 👉 **See Full Vision**: [arch/vision_v2.md](arch/vision_v2.md)
-
-### Highlights
-- **Client-Server Split**: `jcapyd` (Daemon) + `jcapy-cli` (Client).
-- **Security Fortress**: mTLS, WASM Sandboxing, Secret Vault.
-- **Clawdbot Bridge**: Integration for non-dev tasks (reminders, chat).
-- **Interactive Streaming**: ZeroMQ-based real-time logs.

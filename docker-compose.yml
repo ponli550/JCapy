@@ -1,1 +1,153 @@
-# One-Army Docker Compose\n# services:\n#   (services will be added here)\n
+# JCapy Production Docker Compose
+# One-Army Orchestrator - Daemon + Web Control Plane + Cloudflare Tunnel
+#
+# Usage:
+#   docker-compose up -d              # Start daemon in background
+#   docker-compose up                 # Start with logs visible
+#   docker-compose exec jcapy bash    # Shell access
+#   docker-compose logs -f            # Follow logs
+#   docker-compose down               # Stop services
+
+version: "3.9"
+
+services:
+  # ============================================
+  # JCapy Daemon Service
+  # ============================================
+  jcapy:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: jcapy:4.1.8
+    container_name: jcapy-daemon
+    hostname: jcapy
+    
+    # Run modes: daemon (default), web, cli, tui
+    command: daemon
+    
+    # Environment configuration
+    environment:
+      - JCAPY_DAEMON_MODE=1
+      - JCAPY_HOME=/home/jcapy/.jcapy
+      - JCAPY_LOG_DIR=/app/logs
+      - JCAPY_DATA_DIR=/home/jcapy/.jcapy/data
+      - TZ=Asia/Kuala_Lumpur
+      # Uncomment for Pinecone integration
+      # - PINECONE_API_KEY=${PINECONE_API_KEY}
+    
+    # Port mappings
+    ports:
+      - "8080:8080"   # Web Control Plane
+      # - "50051:50051"  # gRPC (future)
+    
+    # Persistent volumes
+    volumes:
+      # Configuration and skills
+      - jcapy_home:/home/jcapy/.jcapy
+      # Logs
+      - jcapy_logs:/app/logs
+      # Project workspace (mount your project here)
+      # - ./workspace:/workspace:rw
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+
+  # ============================================
+  # Cloudflare Tunnel (Optional)
+  # ============================================
+  cloudflare-tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: jcapy-tunnel
+    profiles:
+      - tunnel
+    
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    
+    depends_on:
+      jcapy:
+        condition: service_healthy
+    
+    restart: unless-stopped
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ============================================
+  # Redis Cache (Optional - for future use)
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: jcapy-redis
+    profiles:
+      - cache
+    
+    command: redis-server --appendonly yes
+    
+    volumes:
+      - redis_data:/data
+    
+    ports:
+      - "6379:6379"
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+# ============================================
+# Named Volumes
+# ============================================
+volumes:
+  jcapy_home:
+    driver: local
+  jcapy_logs:
+    driver: local
+  redis_data:
+    driver: local
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  default:
+    name: jcapy-network
+    driver: bridge

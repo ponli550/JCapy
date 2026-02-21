@@ -98,7 +98,32 @@ class DockerSandbox(BaseSandbox):
     def download_file(self, remote_path: str, local_path: str):
         pass
 
+class WasmSandbox(BaseSandbox):
+    """
+    Experimental WASM sandbox for Skill execution (Phase 7.4).
+    """
+    def __init__(self, wasm_path: Optional[str] = None):
+        self.wasm_path = wasm_path
+        try:
+            import wasmtime
+            self.engine = wasmtime.Engine()
+            self.store = wasmtime.Store(self.engine)
+        except ImportError:
+            self.engine = None
+
+    def run_command(self, command: str, workdir: Optional[str] = None) -> str:
+        if not self.engine:
+            raise RuntimeError("wasmtime not installed. WasmSandbox disabled.")
+        # Prototype: In a real implementation, we would execute the command
+        # within a WASI environment.
+        return f"WASM Execution (Simulated): {command}"
+
+    def upload_file(self, local_path: str, remote_path: str): pass
+    def download_file(self, remote_path: str, local_path: str): pass
+
 def get_sandbox(sandbox_type: str = "local", **kwargs) -> BaseSandbox:
     if sandbox_type == "docker":
         return DockerSandbox(**kwargs)
+    if sandbox_type == "wasm":
+        return WasmSandbox(**kwargs)
     return LocalSandbox()

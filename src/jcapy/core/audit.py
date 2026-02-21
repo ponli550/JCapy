@@ -66,3 +66,14 @@ _global_audit_logger = AuditLogger()
 
 def get_audit_logger() -> AuditLogger:
     return _global_audit_logger
+
+def audit_log(event_type: str, payload: Dict[str, Any], outcome: Optional[str] = None) -> None:
+    """
+    Convenience function to log an audit event using the global logger.
+    """
+    _global_audit_logger.log_event(
+        event_type=event_type,
+        agent_id="system",
+        payload=payload,
+        outcome=outcome
+    )

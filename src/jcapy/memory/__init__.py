@@ -220,6 +220,17 @@ def get_memory_bank() -> MemoryInterface:
                  print(f"⚠️  Error initializing Remote Memory: {e}. Falling back to Local.")
                  return LocalMemoryBank()
 
+        if provider == "chroma_cloud":
+            try:
+                from jcapy.memory.chroma_cloud import ChromaCloudMemoryBank
+                return ChromaCloudMemoryBank()
+            except ImportError as e:
+                 print(f"⚠️  Detailed error loading ChromaCloudMemoryBank (check chromadb): {e}. Falling back to Local.")
+                 return LocalMemoryBank()
+            except Exception as e:
+                 print(f"⚠️  Error initializing Chroma Cloud Memory: {e}. Falling back to Local.")
+                 return LocalMemoryBank()
+
         return LocalMemoryBank()
     except Exception:
         # Fallback

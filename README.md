@@ -1,5 +1,7 @@
 # JCapy: The One-Army Orchestrator
 
+> 📋 **Project Status**: See [`MASTER_STATUS.md`](./MASTER_STATUS.md) for current progress and known issues.
+
 ![JCapy Logo](https://raw.githubusercontent.com/irfansoftstudio/jcapy/main/docs/assets/logo.png)
 
 [![PyPI version](https://badge.fury.io/py/jcapy.svg)](https://badge.fury.io/py/jcapy)
