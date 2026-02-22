@@ -24,6 +24,8 @@ wheels/
 .venv/
 venv/
 ENV/
+test_venv/
+scripts/venv/
 
 # IDE
 .vscode/
@@ -41,5 +43,32 @@ htmlcov/
 
 # Build artifacts
 *.tar.gz
+
+# Worktrees
 .worktrees/
 worktrees/
+
+# JCapy runtime
+.jcapyrc.local
+*.log
+
+# Temporary directories
+path/
+packages/
+
+# Node modules (for web app)
+node_modules/
+pnpm-store/
+
+# Docker volumes (local)
+.docker/
+
+# Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Logs
+logs/

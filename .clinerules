@@ -1,0 +1,86 @@
+# JCapy Project Rules
+# ====================
+# These rules MUST be followed by all AI assistants working on this project.
+
+## 1. MASTER DOCUMENTATION RULE
+
+**CRITICAL**: `MASTER_STATUS.md` is the SINGLE SOURCE OF TRUTH for project status.
+
+### Before ANY code change:
+1. Read `MASTER_STATUS.md` to understand current state
+2. Check which phase/component you're affecting
+3. Verify dependencies are complete
+
+### After ANY code change:
+1. Update `MASTER_STATUS.md` with:
+   - Changed component status (if applicable)
+   - Updated "Last Updated" timestamp
+   - Progress percentages
+2. Mark tasks as [x] complete ONLY when verified working
+3. Add new tasks discovered during work
+
+### Forbidden Actions:
+- NEVER mark something complete without verification
+- NEVER create competing status documents
+- NEVER update marketing docs (README.md, STATE_OF_THE_UNION) without updating MASTER_STATUS.md first
+- NEVER claim "100% complete" if MASTER_STATUS.md shows incomplete tasks
+
+## 2. VERSION RULE
+
+Current Version: v4.1.8 (Orbital Foundation)
+
+- All references to version should use this single version
+- Update version ONLY in MASTER_STATUS.md
+- Deprecate v4.x references - we are on 4.1.8 series
+
+## 3. DOCUMENTATION HIERARCHY
+
+1. **MASTER_STATUS.md** - Authoritative status (ALWAYS most accurate)
+2. **MEMORY.md** - Architectural decisions and constraints (DO NOT MODIFY lightly)
+3. **CHANGELOG.md** - Historical record of changes
+4. **README.md** - Public-facing documentation
+5. **docs/** - Detailed documentation (must reference MASTER_STATUS.md)
+
+## 4. CODE CHANGE PROTOCOL
+
+```
+1. Read MASTER_STATUS.md
+2. Identify affected component
+3. Make code changes
+4. Test changes
+5. Update MASTER_STATUS.md:
+   - Component status
+   - Completion percentage
+   - Task checkboxes
+6. Update CHANGELOG.md if significant
+```
+
+## 5. HONESTY RULE
+
+- Report failures honestly
+- Mark blocked items as [BLOCKED] with reason
+- Use accurate percentages (not "95%" for long periods)
+- Document known issues in MASTER_STATUS.md
+
+## 6. FILE ORGANIZATION
+
+### Active Development:
+- `src/jcapy/` - Main source code
+- `tests/` - Test files
+- `apps/web/` - Web interface
+
+### Planning (do not implement from):
+- `docs/plans/` - Reference only, may be outdated
+- `docs/research/` - Research notes
+
+### Completed/Reference:
+- `docs/architecture/` - Architectural decisions
+- `docs/guides/` - User/developer guides
+
+## 7. COMMITMENT RULE
+
+When starting a work session:
+1. Read MASTER_STATUS.md first
+2. Check COMPLETION_TASKS.md for pending items
+3. Focus on ONE incomplete phase at a time
+4. Update MASTER_STATUS.md at end of session

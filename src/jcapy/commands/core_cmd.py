@@ -69,10 +69,17 @@ def run_tui(args=None, start_screen="dashboard"):
     if args and hasattr(args, 'screen'):
         start_screen = args.screen
 
+    is_orbital = getattr(args, 'orbital', False)
+
     try:
         import threading
-        from jcapy.ui.app import JCapyApp
-        app = JCapyApp(start_screen=start_screen)
-        app.run(signals=threading.current_thread() is threading.main_thread())
+        if is_orbital:
+            from jcapy.ui.orbital_app import JCapyOrbitalApp
+            app = JCapyOrbitalApp(start_screen=start_screen)
+        else:
+            from jcapy.ui.app import JCapyApp
+            app = JCapyApp(start_screen=start_screen)
+
+        app.run()
     except Exception as e:
         print(f"Error launching Dashboard: {e}")

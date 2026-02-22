@@ -1,13 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 import sys
-import argparse
 import os
+import json
 import time
+import argparse
+import logging
+import threading
 from jcapy.config import get_active_library_path, get_current_persona_name, load_config
 from jcapy.utils.updates import check_for_framework_updates, get_update_status, VERSION
 from jcapy.ui.ux.hints import prompt_typo_correction, get_tutorial, JCAPY_COMMANDS
 from jcapy.core.plugins import get_registry
-from jcapy.core.bootstrap import register_core_commands
+from jcapy.core.service import get_service
+from jcapy.core.client import JCapyClient
 from jcapy.ui.menu import terminal_hygiene
 
 # ANSI Colors
@@ -50,32 +54,45 @@ def print_help():
         print("Rich not installed. Run 'pip install rich'")
 
 def main():
-    # 1. Initialize Registry
-    registry = get_registry()
+    # 1. Initialize Service (Registry + Plugins)
+    service = get_service()
+    registry = service.registry
 
-    # 2. Register Core Commands
-    register_core_commands(registry)
-
-    # 3. Load External Plugins
-    # 3. Load External Plugins
-    registry.load_plugins()
-
-    # Load Example Local Plugins (for dev/test)
-    # Ideally config.get("plugin_paths")
-    registry.load_local_plugins("examples/skills")
-
-    # Load User Plugins
+    # Load User Plugins (handled by get_service, but we can add more if needed)
     registry.load_local_plugins(os.path.expanduser("~/.jcapy/skills"))
 
     parser = argparse.ArgumentParser(description=f"# jcapy Core - The One-Army Orchestrator\n# Version: {VERSION}", add_help=True)
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # 4. Configure Parsers from Registry
+    parser.add_argument("-o", "--orbital", action="store_true", help="Launch in Orbital (Stateless) mode")
     registry.configure_parsers(subparsers)
 
+    # 5. Register daemon subparser (special case with nested commands)
+    from jcapy.commands.daemon_cmd import register_parser as register_daemon_parser
+    register_daemon_parser(subparsers)
+
     try:
-        # Handling for no args
-        if len(sys.argv) == 1:
+        # 1. Handle version and help manually before parsing to preserve cinematic side-effects
+        if "--version" in sys.argv or "-v" in sys.argv:
+            print(f"jcapy v{VERSION}")
+            return
+
+        if len(sys.argv) == 2 and sys.argv[1] in ["-h", "--help"]:
+            check_for_framework_updates()
+            print_help()
+            return
+
+        # 2. Main argument parsing
+        try:
+            args = parser.parse_args()
+        except SystemExit:
+            # argparse might exit on -h if not handled above
+            return
+
+        # 3. Decisions: TUI vs CLI
+        # If no command is provided, we launch the Dashboard (TUI)
+        if not args.command:
             # Check for standard config file
             from jcapy.config import CONFIG_PATH
 
@@ -115,9 +132,8 @@ def main():
             migrate_persona_libraries()
 
             try:
-                from jcapy.ui.app import JCapyApp
-                app = JCapyApp()
-                app.run()
+                from jcapy.commands.core_cmd import run_tui
+                run_tui(args=args)
             except ImportError as e:
                 # Provide a much more helpful error message for missing TUI dependencies
                 print(f"\n❌ Dashboard Error: {e}")
@@ -137,25 +153,48 @@ def main():
                 traceback.print_exc()
             return
 
-        # Handle custom version flag
-        if "--version" in sys.argv or "-v" in sys.argv:
-            print(f"jcapy v{VERSION}")
-            return
-
-        # Handle custom help flag - only for global help/updates check
-        if len(sys.argv) == 2 and sys.argv[1] in ["-h", "--help"]:
-            check_for_framework_updates()
-            print_help()
-            return
-
-        try:
-            args = parser.parse_args()
-        except argparse.ArgumentError:
-            print_help()
-            return
+        # Sub-commands handled below
 
         if hasattr(args, 'func'):
-            result = args.func(args)
+            # Show a spinner for tactical/long-running commands in CLI mode
+            registry = get_registry()
+            cmd_name = getattr(args, 'command', 'command')
+            is_interactive = cmd_name in registry._interactive
+
+            if not is_interactive and sys.stdout.isatty():
+                # Orbital Architecture delegation (Phase 7.2)
+                client = JCapyClient()
+                if client.connect(timeout=1):
+                    from rich.status import Status
+                    with Status(f"[bold cyan]Orchestrating {cmd_name} (Remote)...[/]", spinner="dots"):
+                        # Launch log streaming in a background thread
+                        def log_streamer():
+                            client.stream_logs(lambda entry: print(f"{GREY}[{entry.source}] {entry.message}{RESET}"))
+
+                        log_thread = threading.Thread(target=log_streamer, daemon=True)
+                        log_thread.start()
+
+                        # Execute command
+                        rpc_result = client.execute(cmd_name + " " + " ".join(sys.argv[2:]))
+
+                        # Wait a bit for final logs
+                        time.sleep(0.5)
+
+                        # Convert RPC result back to something the CLI can handle
+                        from jcapy.core.base import CommandResult, ResultStatus
+                        status_map = {"success": ResultStatus.SUCCESS, "failure": ResultStatus.FAILURE}
+                        result = CommandResult(
+                            status=status_map.get(rpc_result.status, ResultStatus.FAILURE),
+                            message=rpc_result.message,
+                            data=json.loads(rpc_result.result_data_json) if rpc_result.result_data_json else None
+                        )
+                else:
+                    # Fallback to local execution
+                    from rich.status import Status
+                    with Status(f"[bold cyan]Orchestrating {cmd_name} (Local)...[/]", spinner="dots"):
+                        result = args.func(args)
+            else:
+                result = args.func(args)
 
             # Legacy/Modern Bridge: Handle CommandResult
             # If a command returns a result object, we should render it for CLI users

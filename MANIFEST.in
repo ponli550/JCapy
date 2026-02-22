@@ -2,4 +2,29 @@ include src/jcapy/ui/*.tcss
 include src/jcapy/**/*.md
 include README.md
 include LICENSE
+include CHANGELOG.md
+include pyproject.toml
+
+# Include daemon service files
+include services/*.service
+include services/*.plist
+
+# Include web assets (built)
+recursive-include apps/web/dist *.html *.js *.css *.svg *.png *.ico
+
+# Include skills registry
+include jcapy-skills/registry.yaml
+include jcapy-skills/**/*.yaml
+include jcapy-skills/**/*.md
+
+# Include configuration examples
+include .jcapyrc
+
+# Exclude development files
 global-exclude *.py[cod]
+global-exclude __pycache__
+global-exclude .DS_Store
+global-exclude *.egg-info
+recursive-exclude tests *
+recursive-exclude docs *
+recursive-exclude .github *

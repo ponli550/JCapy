@@ -1,0 +1,62 @@
+# JCapy Daemon Systemd Service
+# Install:
+#   sudo cp jcapy-daemon.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable jcapy-daemon
+#   sudo systemctl start jcapy-daemon
+#
+# Manage:
+#   sudo systemctl status jcapy-daemon
+#   sudo systemctl restart jcapy-daemon
+#   sudo systemctl stop jcapy-daemon
+#   journalctl -u jcapy-daemon -f
+
+[Unit]
+Description=JCapy - One-Army Orchestrator Daemon
+Documentation=https://github.com/ponli550/JCapy
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%USER%
+Group=%GROUP%
+WorkingDirectory=%HOME%
+
+# Command to start the daemon
+ExecStart=/usr/local/bin/jcapy daemon start --port 8080
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStop=/bin/kill -TERM $MAINPID
+
+# Restart configuration
+Restart=on-failure
+RestartSec=10
+
+# Environment
+Environment="JCAPY_DAEMON_MODE=1"
+Environment="HOME=%HOME%"
+Environment="JCAPY_HOME=%HOME%/.jcapy"
+Environment="JCAPY_LOG_DIR=%HOME%/.jcapy/logs"
+
+# Logging
+StandardOutput=append:%HOME%/.jcapy/logs/daemon.log
+StandardError=append:%HOME%/.jcapy/logs/daemon.error.log
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%HOME%/.jcapy
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=2G
+CPUQuota=200%
+
+# Timeout settings
+TimeoutStartSec=30
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

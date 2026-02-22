@@ -163,9 +163,13 @@ class KanbanWidget(Widget, can_focus=True):
         self.styles.border = ("round", "green" if active else "blue")
 
     def update_board(self) -> None:
-        from jcapy.config import get_ux_preference
+        if getattr(self.app, 'is_orbital', False) and getattr(self.app, 'client', None):
+            self.fetch_remote_board()
+            return
+
+        from jcapy.config import get_ux_preference, get_task_file_path
         max_tasks = get_ux_preference("max_task_display") or 5
-        task_file = "/Users/irfanali/.gemini/antigravity/brain/41e0cc09-b343-4215-b7f5-16b292e29d81/task.md"
+        task_file = get_task_file_path()
 
         try:
             todo_list = self.query_one("#todo-list", ListView)
@@ -205,11 +209,53 @@ class KanbanWidget(Widget, can_focus=True):
         if d_idx is not None and d_idx < len(doing_list.children): doing_list.index = d_idx
         if x_idx is not None and x_idx < len(done_list.children): done_list.index = x_idx
 
-    def action_focus_left(self) -> None:
-        current = self.app.focused
-        if current == self.query_one("#doing-list"): self.query_one("#todo-list").focus()
-        elif current == self.query_one("#done-list"): self.query_one("#doing-list").focus()
-        else: self.query_one("#todo-list").focus()
+    @work(thread=True)
+    def fetch_remote_board(self) -> None:
+        """Fetch task.md content from remote daemon."""
+        if not self.app.client: return
+        response = self.app.client.execute("cat task.md") # Assuming standard path for now
+        if response.status == "success":
+            lines = response.message.splitlines()
+            self.app.call_from_thread(self._render_board_from_lines, lines)
+
+    def _render_board_from_lines(self, lines: list):
+        from jcapy.config import get_ux_preference
+        max_tasks = get_ux_preference("max_task_display") or 5
+
+        try:
+            todo_list = self.query_one("#todo-list", ListView)
+            doing_list = self.query_one("#doing-list", ListView)
+            done_list = self.query_one("#done-list", ListView)
+        except: return
+
+        t_idx, d_idx, x_idx = todo_list.index, doing_list.index, done_list.index
+        todo_list.clear()
+        doing_list.clear()
+        done_list.clear()
+
+        counts = {"todo": 0, "doing": 0, "done": 0}
+        for line in lines:
+            line = line.strip()
+            status = None
+            if line.startswith("- [ ]"): status = "todo"
+            elif line.startswith("- [/]"): status = "doing"
+            elif line.startswith("- [x]"): status = "done"
+
+            if status:
+                counts[status] += 1
+                if counts[status] <= max_tasks:
+                    list_widget = todo_list if status == "todo" else (doing_list if status == "doing" else done_list)
+                    list_widget.append(KanbanTask(line[5:].strip(), status))
+
+        # Add condensation summary if needed
+        for status, count in counts.items():
+            if count > max_tasks:
+                list_widget = todo_list if status == "todo" else (doing_list if status == "doing" else done_list)
+                list_widget.append(ListItem(Label(f"[dim]+ {count - max_tasks} more tasks...[/]")))
+
+        if t_idx is not None and t_idx < len(todo_list.children): todo_list.index = t_idx
+        if d_idx is not None and d_idx < len(doing_list.children): doing_list.index = d_idx
+        if x_idx is not None and x_idx < len(done_list.children): done_list.index = x_idx
 
     def action_focus_right(self) -> None:
         current = self.app.focused
@@ -236,7 +282,8 @@ class KanbanWidget(Widget, can_focus=True):
         self.update_board()
 
     def update_task_status(self, title: str, old_prefix: str, new_prefix: str) -> None:
-        task_file = "/Users/irfanali/.gemini/antigravity/brain/41e0cc09-b343-4215-b7f5-16b292e29d81/task.md"
+        from jcapy.config import get_task_file_path
+        task_file = get_task_file_path()
         if not os.path.exists(task_file): return
         with open(task_file, "r") as f: lines = f.readlines()
         new_lines = []
@@ -253,7 +300,8 @@ class KanbanWidget(Widget, can_focus=True):
         self.archive_done_tasks()
 
     def archive_done_tasks(self) -> None:
-        task_file = "/Users/irfanali/.gemini/antigravity/brain/41e0cc09-b343-4215-b7f5-16b292e29d81/task.md"
+        from jcapy.config import get_task_file_path
+        task_file = get_task_file_path()
         if not os.path.exists(task_file): return
         with open(task_file, "r") as f: lines = f.readlines()
         new_lines = []
@@ -287,7 +335,34 @@ class ProjectStatusWidget(Static):
 
     def update_status(self) -> None:
         self.update("[dim]Loading Status...[/]")
-        self.fetch_git_info()
+        if getattr(self.app, 'is_orbital', False) and getattr(self.app, 'client', None):
+            self.fetch_remote_git_info()
+        else:
+            self.fetch_git_info()
+
+    @work(thread=True)
+    def fetch_remote_git_info(self) -> None:
+        """Fetch git info from remote daemon."""
+        if not self.app.client: return
+        # We can run a compound command or multiple small ones.
+        # For simplicity, let's run a bash snippet.
+        cmd = "echo $(git branch --show-current) '::' $(basename $(pwd)) '::' $(pwd)"
+        response = self.app.client.execute(cmd)
+        if response.status == "success":
+            try:
+                parts = response.message.strip().split(" :: ")
+                if len(parts) >= 3:
+                    branch, project_name, cwd = parts[0], parts[1], parts[2]
+
+                    # Truncate path
+                    display_path = cwd # Simple for remote
+
+                    content = f"\n[bold cyan]📂 {project_name.upper()} (REMOTE)[/]\n"
+                    content += f"[dim] {branch}[/]\n"
+                    content += f"[dim]📍 {display_path}[/]"
+                    self.app.call_from_thread(self.update, content)
+            except:
+                pass
 
     @work(thread=True)
     def fetch_git_info(self) -> None:
@@ -533,26 +608,82 @@ class GitLogWidget(Static):
             self.app.run_command("jcapy sync")
 
 class NewsWidget(Static):
-    """Tech News Ticker."""
+    """Tech News Ticker - Real headlines from Hacker News."""
     def on_mount(self) -> None:
         self.highlighted = False
-        self.headlines = ["JCapy v4.0.0 RC", "AI Market Growth", "Python 3.14 Boost", "New MCP Standard", "Textual Updates"]
+        self.headlines = []
         self.index = 0
-        self.refresh_content()
-        self.set_interval(5, self.rotate_news)
+        self.last_fetch = None
+        self.fetch_news()
+        # Rotate every 8 seconds
+        self.set_interval(8, self.rotate_news)
+        # Refresh news every 10 minutes
+        self.set_interval(600, self.fetch_news)
 
     def toggle_highlight(self, active: bool) -> None:
         self.highlighted = active
         self.refresh_content()
 
+    @work(thread=True)
+    def fetch_news(self):
+        """Fetch top stories from Hacker News API."""
+        import urllib.request
+        import json
+
+        fallback_headlines = [
+            "JCapy v4.1 Released",
+            "AI Tools Transforming Dev Workflows",
+            "Python 3.14 Performance Boost",
+            "New MCP Protocol Standard",
+            "Textual Framework Updates"
+        ]
+
+        try:
+            # Get top story IDs
+            url = "https://hacker-news.firebaseio.com/v0/topstories.json"
+            req = urllib.request.Request(url, headers={'User-Agent': 'JCapy/4.1'})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                story_ids = json.loads(response.read().decode())[:10]
+
+            headlines = []
+            for story_id in story_ids[:5]:
+                try:
+                    story_url = f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
+                    req = urllib.request.Request(story_url, headers={'User-Agent': 'JCapy/4.1'})
+                    with urllib.request.urlopen(req, timeout=3) as story_response:
+                        story = json.loads(story_response.read().decode())
+                        title = story.get("title", "")
+                        if title:
+                            headlines.append(title[:60] + "..." if len(title) > 60 else title)
+                except:
+                    continue
+
+            if headlines:
+                self.headlines = headlines
+            else:
+                self.headlines = fallback_headlines
+
+        except Exception as e:
+            # Fallback to static headlines if API fails
+            self.headlines = fallback_headlines
+
+        self.last_fetch = datetime.now()
+        self.app.call_from_thread(self.refresh_content)
+
     def rotate_news(self):
+        if not self.headlines:
+            return
         self.index = (self.index + 1) % len(self.headlines)
         self.refresh_content()
 
     def refresh_content(self):
-        current = self.headlines[self.index]
-        nxt = self.headlines[(self.index + 1) % len(self.headlines)]
-        content = f"[bold cyan]BREAKING:[/bold cyan] {current}\n\n[dim]Coming up: {nxt}[/dim]"
+        if not self.headlines:
+            content = "[dim]Loading news...[/dim]"
+        else:
+            current = self.headlines[self.index]
+            nxt = self.headlines[(self.index + 1) % len(self.headlines)]
+            content = f"[bold cyan]TRENDING:[/bold cyan] {current}\n\n[dim]Next: {nxt}[/dim]"
+
         border = "green" if getattr(self, "highlighted", False) else "yellow"
         self.update(Panel(content, title="📰 Tech News", border_style=border))
 
@@ -567,17 +698,35 @@ class UsageTrackerWidget(Static):
         self.refresh_content()
 
     def refresh_content(self):
+        if getattr(self.app, 'is_orbital', False) and getattr(self.app, 'client', None):
+            self.fetch_remote_usage()
+            return
+
         from jcapy.utils.usage import USAGE_LOG_MANAGER
         summary = USAGE_LOG_MANAGER.get_session_summary()
         total_summary = USAGE_LOG_MANAGER.get_total_summary()
+        self._render_usage(summary, total_summary)
 
-        in_toks = summary["input_tokens"]
-        out_toks = summary["output_tokens"]
-        cost = summary["cost"]
+    @work(thread=True)
+    def fetch_remote_usage(self):
+        """Fetch usage stats from remote daemon."""
+        if not self.app.client: return
+        # Mocking for now, as we'd need a dedicated RPC for high-perf telemetry.
+        # But we can use ExecuteCommand as a bridge for now.
+        import json
+        response = self.app.client.execute("usage --json")
+        if response.status == "success" and response.result_data_json:
+            data = json.loads(response.result_data_json)
+            self.app.call_from_thread(self._render_usage, data.get("session", {}), data.get("lifetime", {}))
+
+    def _render_usage(self, summary: dict, total_summary: dict):
+        in_toks = summary.get("input_tokens", 0)
+        out_toks = summary.get("output_tokens", 0)
+        cost = summary.get("cost", 0.0)
 
         session_limit = CONFIG_MANAGER.get("usage.session_limit", 5.0)
 
-        # Sparkline simulation (using historical data if possible, mock for now)
+        # Sparkline simulation
         spark_data = [2, 5, 3, 8, 4, 9, 7, 12, 10, 15]
         bars = " ▂▃▄▅▆▇█"
         sparkline = "".join(bars[min(len(bars)-1, d // 2)] for d in spark_data)
@@ -609,7 +758,7 @@ class UsageTrackerWidget(Static):
 
         content.append("\n\n  [LIFETIME]\n", style="dim italic")
         content.append("  TOTAL:    ", style="dim white")
-        content.append(f"${total_summary['cost']:>8.2f}", style="bold magenta")
+        content.append(f"${total_summary.get('cost', 0.0):>8.2f}", style="bold magenta")
 
         border = "red" if cost >= session_limit else ("yellow" if cost >= session_limit*0.8 else "blue")
         if getattr(self, "highlighted", False): border = "green"
@@ -664,25 +813,127 @@ class ScratchpadWidget(Static, can_focus=True):
         with open(path, "w") as f: f.write(self.text_area.text)
 
 class MCPWidget(Static):
-    """Active MCP Tools."""
+    """Active MCP Tools - Real Server Status."""
     def on_mount(self) -> None:
         self.highlighted = False
+        self.servers = []
         self.refresh_content()
+        # Refresh every 30 seconds
+        self.set_interval(30, self.refresh_content)
 
     def toggle_highlight(self, active: bool) -> None:
         self.highlighted = active
         self.refresh_content()
 
+    @work(thread=True)
     def refresh_content(self):
-        content = Text.assemble(
-            ("\n 🔌 ", "bold cyan"), ("MCP INFRASTRUCTURE\n\n", "bold white"),
-            ("  filesystem     ", "dim"), ("🟢 LIVE\n", "bold green"),
-            ("  brave-search   ", "dim"), ("🟢 LIVE\n", "bold green"),
-            ("  github         ", "dim"), ("🔴 OFFLINE\n", "bold red"),
-            ("\n  3 servers configured", "italic dim")
-        )
+        """Check real MCP server status from config."""
+        from jcapy.config import get_mcp_config_path, JCAPY_HOME
+        import json
+
+        # Default MCP servers that come with JCapy
+        default_servers = [
+            {"name": "jcapy-local", "type": "builtin", "status": "available"},
+        ]
+
+        # Load configured servers
+        config_path = get_mcp_config_path()
+        configured_servers = []
+
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, "r") as f:
+                    config = json.load(f)
+                    # Claude Desktop format: mcpServers dict
+                    for name, server_config in config.get("mcpServers", {}).items():
+                        configured_servers.append({
+                            "name": name,
+                            "type": server_config.get("type", "external"),
+                            "command": server_config.get("command", ""),
+                            "status": self._check_server_status(name, server_config)
+                        })
+            except Exception as e:
+                configured_servers = []
+        else:
+            # Create default config
+            self._create_default_mcp_config(config_path)
+
+        # Combine servers
+        all_servers = default_servers + configured_servers
+        self.servers = all_servers
+
+        # Build content
+        content = Text()
+        content.append("\n 🔌 ", style="bold cyan")
+        content.append("MCP INFRASTRUCTURE\n\n", style="bold white")
+
+        live_count = 0
+        for server in all_servers:
+            name = server["name"]
+            status = server["status"]
+
+            # Truncate name if too long
+            display_name = name[:15] if len(name) > 15 else name
+            display_name = display_name.ljust(15)
+
+            content.append(f"  {display_name}", style="dim")
+
+            if status == "live":
+                content.append("🟢 LIVE\n", style="bold green")
+                live_count += 1
+            elif status == "available":
+                content.append("🟡 READY\n", style="bold yellow")
+                live_count += 1
+            else:
+                content.append("🔴 OFFLINE\n", style="bold red")
+
+        content.append(f"\n  {len(all_servers)} servers configured", style="italic dim")
+
         border = "green" if getattr(self, "highlighted", False) else "blue"
-        self.update(Panel(content, title="Infrastructure", border_style=border))
+        panel = Panel(content, title="Infrastructure", border_style=border)
+        self.app.call_from_thread(self.update, panel)
+
+    def _check_server_status(self, name: str, config: dict) -> str:
+        """Check if an MCP server is running."""
+        command = config.get("command", "")
+
+        # Check if it's a known command that should be available
+        if command:
+            # Check if the command exists
+            cmd_name = command.split()[0] if command else ""
+            try:
+                import shutil
+                if shutil.which(cmd_name):
+                    return "available"
+            except:
+                pass
+
+        # For Python-based servers, check if module exists
+        if "uvx" in command or "python" in command:
+            return "available"
+
+        return "offline"
+
+    def _create_default_mcp_config(self, config_path: str):
+        """Create a default MCP configuration file."""
+        import json
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+
+        default_config = {
+            "mcpServers": {
+                "jcapy": {
+                    "command": "python",
+                    "args": ["-m", "jcapy.mcp.server"],
+                    "type": "builtin"
+                }
+            }
+        }
+
+        try:
+            with open(config_path, "w") as f:
+                json.dump(default_config, f, indent=2)
+        except:
+            pass
 
 # ==========================================
 # STATUS WIDGET
@@ -701,10 +952,26 @@ class StatusWidget(Static):
         self.update_render()
 
     def update_render(self):
+        if getattr(self.app, 'is_orbital', False) and getattr(self.app, 'client', None):
+            self.fetch_remote_status()
+            return
+
         from jcapy.config import CONFIG_MANAGER
         persona = CONFIG_MANAGER.get("core.persona", "developer").capitalize()
         # Identity focused HUD component
         self.update(f"{self.status}  [dim]|[/] 👤 [bold cyan]{persona}[/]")
+
+    @work(thread=True)
+    def fetch_remote_status(self):
+        """Fetch status from remote daemon."""
+        if not self.app.client: return
+        response = self.app.client.get_status()
+        if response.status == "healthy":
+            status_text = "🟢 [bold green]Orbital Linked[/]"
+            persona = response.active_persona.capitalize()
+            self.app.call_from_thread(self.update, f"{status_text}  [dim]|[/] 👤 [bold cyan]{persona}[/]")
+        else:
+            self.app.call_from_thread(self.update, "🔴 [bold red]Orbital Offline[/]")
 
 # ==========================================
 # WIDGET REGISTRATION

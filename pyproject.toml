@@ -16,6 +16,11 @@ dependencies = [
     "textual>=0.50.0",
     "PyYAML>=6.0",
     "python-dotenv>=1.0.0",
+    "grpcio>=1.78.1",
+    "grpcio-tools>=1.78.1",
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
 ]
 readme = "README.md"
 keywords = ["cli", "developer-tools", "automation", "productivity", "terminal"]
@@ -36,6 +41,17 @@ Issues = "https://github.com/ponli550/JCapy/issues"
 
 [project.optional-dependencies]
 pro = ["pinecone>=3.0.0"]
+web = [
+    "pyzmq>=25.0.0",
+    "fastapi>=0.109.0",
+    "uvicorn>=0.27.0",
+]
+all = [
+    "pinecone>=3.0.0",
+    "pyzmq>=25.0.0",
+    "fastapi>=0.109.0",
+    "uvicorn>=0.27.0",
+]
 
 [project.scripts]
 jcapy = "jcapy.main:main"

@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package jcapy;
+
+// JCapyOrchestrator is the primary interface for JCapy 2.0 Brain (jcapyd).
+service JCapyOrchestrator {
+  // Execute a command on the daemon.
+  rpc ExecuteCommand (CommandRequest) returns (CommandResponse);
+
+  // Stream real-time logs from the daemon.
+  rpc StreamLogs (LogRequest) returns (stream LogEntry);
+
+  // Get current daemon status.
+  rpc GetStatus (StatusRequest) returns (StatusResponse);
+
+  // Request approval for a sensitive action (Security Proxy).
+  rpc RequestApproval (ApprovalRequest) returns (ApprovalResponse);
+}
+
+message CommandRequest {
+  string command_str = 1;
+  map<string, string> context = 2; // e.g. TUI metadata
+}
+
+message CommandResponse {
+  string status = 1; // "success", "failure", "queued"
+  string message = 2;
+  string result_data_json = 3;
+}
+
+message LogRequest {
+  string filter = 1;
+}
+
+message LogEntry {
+  string source = 1; // "tui", "daemon", "plugin"
+  string level = 2;
+  string message = 3;
+  string timestamp = 4;
+}
+
+message StatusRequest {}
+
+message StatusResponse {
+  string status = 1;
+  int32 uptime_seconds = 2;
+  string version = 3;
+  string active_persona = 4;
+}
+
+message ApprovalRequest {
+  string event_id = 1;
+  string action_description = 2;
+  string risk_level = 3;
+}
+
+message ApprovalResponse {
+  bool approved = 1;
+  string reason = 2;
+}

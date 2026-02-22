@@ -1,0 +1,10 @@
+skills:
+  - name: "systematic-debugging"
+    path: "systematic-debugging"
+    category: "debugging"
+  - name: "test-driven-development"
+    path: "test-driven-development"
+    category: "testing"
+  - name: "hello-world"
+    path: "hello-world"
+    category: "general"

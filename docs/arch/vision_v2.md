@@ -54,8 +54,11 @@ A standardized communication layer that exposes internal Brain state to the UI.
 ## 3. Technology Stack
 
 - **Inter-Process Communication (IPC)**:
-  - **gRPC (Python)**: Strongly typed contracts (Protobuf), excellent for structured commands.
-  - **ZeroMQ**: For high-throughput log streaming.
+  - **gRPC (Python)**: Strongly typed contracts (Protobuf). **Foundation Implemented.**
+  - **ZeroMQ**: For high-throughput log streaming. **Implemented.**
+- **Architecture Core**:
+  - **JCapyService**: Central brain abstraction. **Implemented.**
+
 - **State Management**:
   - **SQLite / Redis**: For persistent session state and fast ephemeral caching.
 - **Plugin System**:
@@ -123,7 +126,7 @@ What could kill JCapy? Here are the top threats and our architectural defenses.
 
 | Phase | Milestone | Estimated Duration | Key Deliverables |
 | :--- | :--- | :--- | :--- |
-| **1** | **Foundation** | Steps 1-2 | - `ServiceLayer` abstraction covering Process/Memory.<br>- gRPC Protobuf definitions (`jcapy.proto`).<br>- Proof-of-Concept: Echo command via gRPC. |
+| **1** | **Foundation** | Steps 1-2 | ✅ **COMPLETED**<br>- `ServiceLayer` abstraction covering Process/Memory.<br>- gRPC Protobuf definitions (`jcapy.proto`).<br>- Proof-of-Concept implemented. |
 | **2** | **The Split** | Steps 3-5 | - `jcapyd` (Daemon) entry point implemented.<br>- `jcapy-cli` (Client) capable of connecting to local daemon.<br>- Migration of `ProcessManager` to daemon-side. |
 | **3** | **Streaming** | Steps 6-8 | - ZeroMQ/gRPC streaming for real-time logs.<br>- TUI refactor to consume stream instead of local pipes.<br>- **Alpha Release**: Internal dogfooding. |
 | **4** | **Brain Upgrade** | Steps 9-12 | - Move `MemoryBank` (ChromaDB) to daemon.<br>- Implement event bus for async AI analysis.<br>- Persistent session state (SQLite). |

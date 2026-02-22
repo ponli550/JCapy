@@ -383,6 +383,21 @@ class DashboardScreen(Screen):
     def watch_zen_mode(self, active: bool) -> None:
         """Handle visual changes when zen mode toggles."""
         self.set_class(active, "zen-mode-active")
+
+        # Hide HUD and Sidebar for maximum focus
+        try:
+            hud = self.app.query_one("#mode-hud")
+            hud.display = not active
+
+            sidebar = self.query_one("#sidebar")
+            sidebar.display = not active
+
+            # Hide splitters too
+            for splitter in self.query("VerticalSplitter"):
+                splitter.display = not active
+        except:
+            pass
+
         status = "ON" if active else "OFF"
         self.notify(f"Zen Mode: {status}", severity="information")
 
@@ -439,7 +454,6 @@ class DashboardScreen(Screen):
             self._clear_selection()
             self.edit_mode = False # Exit edit mode after swap
 
-            self.notify(f"Swapped {self.selected_widget_name} <-> {target_name}.")
             self.notify(f"Swapped {self.selected_widget_name} <-> {target_name}. Restart to see changes.")
 
     def _clear_selection(self):

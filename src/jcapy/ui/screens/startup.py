@@ -151,28 +151,55 @@ class StartupScreen(Screen):
         # Glitch amplitude decreases as progress increases
         glitch_chance = max(0, 0.2 * (1.0 - progress))
 
-        for line in JCAPY_LOGO:
+        # Scanline reveal (crystallization scan)
+        scan_row = int(progress * logo_height)
+
+        for i, line in enumerate(JCAPY_LOGO):
             row = Text(" " * left_padding)
+            is_scanned = i <= scan_row
+
             for char in line:
-                if random.random() < progress:
-                    # Occasional "bad bit" glitch
-                    if char != " " and random.random() < glitch_chance:
-                        row.append(random.choice("░▒▓█"), style="white")
+                if is_scanned:
+                    if random.random() < progress:
+                        # Occasional "bad bit" glitch
+                        if char != " " and random.random() < glitch_chance:
+                            row.append(random.choice("░▒▓█"), style="white")
+                        else:
+                            row.append(char, style=color)
                     else:
                         row.append(char, style=color)
                 else:
-                    # Rain characters still falling through the reveal
+                    # Matrix rain still falling ahead of scanline
                     if random.random() < 0.1:
                         row.append(random.choice(MATRIX_CHARS), style="dim green")
                     else:
                         row.append(random.choice("░▒▓ "), style="#222222")
+
+            # Add scanline glow
+            if i == scan_row:
+                row.append("  < READY >", style="bold white blink")
+
             final_text.append(row)
             final_text.append("\n")
+
+        # System Checks (Status Logs)
+        if progress > 0.3:
+            checks = [
+                "[OK] AUDIT BUS INITIALIZED",
+                "[OK] DOCKER SANDBOX ACQUIRED",
+                "[OK] CIRCUIT BREAKER ARMED",
+                "[OK] COGNITIVE SPLIT READY"
+            ]
+            visible_count = int((progress - 0.3) * 10)
+            log_text = Text("\n" + " " * left_padding)
+            for j in range(min(visible_count, len(checks))):
+                log_text.append(f"{checks[j]}  ", style="dim green")
+            final_text.append(log_text)
 
         if progress > 0.7:
             tag_progress = (progress - 0.7) / 0.3
             tag_padding = max(0, (self.cols - len(TAGLINE)) // 2)
-            final_text.append("\n")
+            final_text.append("\n\n")
             # Fade in tagline
             tag_color = "#666666" if tag_progress < 0.5 else "dim white"
             final_text.append(" " * tag_padding + TAGLINE, style=tag_color)

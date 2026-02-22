@@ -62,7 +62,7 @@ def get_api_key(provider):
     try:
         import dotenv
         dotenv.load_dotenv()
-    except ImportError:
+    except (ImportError, OSError):
         pass
 
     provider = provider.lower()
@@ -138,6 +138,43 @@ UX_DEFAULTS = {
     "audio_mode": "muted",  # Options: muted, beeps, voice, custom
     "max_task_display": 5,  # Max tasks per column in Kanban before truncation/condensation
 }
+
+# ==========================================
+# PATH CONFIGURATION
+# ==========================================
+def get_task_file_path():
+    """Get the path to the task.md file for Kanban widget."""
+    # Priority: 1. Config, 2. Project-local, 3. JCAPY_HOME
+    config_path = CONFIG_MANAGER.get("paths.task_file")
+    if config_path and os.path.exists(config_path):
+        return config_path
+
+    # Check for local task.md in current project
+    local_task = os.path.join(os.getcwd(), "task.md")
+    if os.path.exists(local_task):
+        return local_task
+
+    # Default to JCAPY_HOME
+    default_path = os.path.join(JCAPY_HOME, "task.md")
+    if not os.path.exists(default_path):
+        # Create empty task file
+        os.makedirs(os.path.dirname(default_path), exist_ok=True)
+        with open(default_path, "w") as f:
+            f.write("# Tasks\n\n- [ ] Example task\n")
+    return default_path
+
+def set_task_file_path(path):
+    """Set the path to the task.md file."""
+    CONFIG_MANAGER.set("paths.task_file", path)
+    return True
+
+def get_mcp_config_path():
+    """Get the path to MCP server configuration."""
+    config_path = CONFIG_MANAGER.get("paths.mcp_config")
+    if config_path and os.path.exists(config_path):
+        return config_path
+    # Default: ~/.jcapy/mcp_servers.json
+    return os.path.join(JCAPY_HOME, "mcp_servers.json")
 
 def get_ux_preference(key: str):
     """Get a UX preference value."""

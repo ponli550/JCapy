@@ -1,0 +1,7 @@
+name: "systematic-debugging"
+version: "1.0.0"
+description: "Process for finding root causes before proposing fixes."
+author: "Antigravity"
+entry_point: null
+commands: []
+permissions: ["read_file", "run_command", "grep_search"]

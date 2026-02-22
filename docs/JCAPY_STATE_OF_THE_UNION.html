@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>JCAPY_STATE_OF_THE_UNION.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="jcapy-state-of-the-union">JCapy State of the Union</h1>
+<blockquote>
+<p><strong>Version:</strong> 4.1.8<br>
+<strong>Last Updated:</strong> 2026-02-20<br>
+<strong>Status:</strong> ✅ 100% Complete</p>
+</blockquote>
+<hr>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol>
+<li><a href="#current-state-overview">Current State Overview</a></li>
+<li><a href="#architecture-map">Architecture Map</a></li>
+<li><a href="#tech-stack">Tech Stack</a></li>
+<li><a href="#version-evolution">Version Evolution</a></li>
+<li><a href="#industry-comparison">Industry Comparison</a></li>
+<li><a href="#owasp-security-compliance">OWASP Security Compliance</a></li>
+<li><a href="#distribution-channels">Distribution Channels</a></li>
+<li><a href="#key-differentiators">Key Differentiators</a></li>
+<li><a href="#skills-registry">Skills Registry</a></li>
+<li><a href="#future-roadmap">Future Roadmap</a></li>
+</ol>
+<hr>
+<h2 id="current-state-overview">Current State Overview</h2>
+<h3 id="completion-status-100">Completion Status: 100%</h3>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Progress</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Core Architecture</td>
+<td>██████████ 100%</td>
+<td>✅ Complete</td>
+</tr>
+<tr>
+<td>Security (OWASP)</td>
+<td>██████████ 100%</td>
+<td>✅ Complete</td>
+</tr>
+<tr>
+<td>Skills Registry</td>
+<td>██████████ 100%</td>
+<td>✅ Complete</td>
+</tr>
+<tr>
+<td>Testing</td>
+<td>██████████ 100%</td>
+<td>✅ 103 tests passing</td>
+</tr>
+<tr>
+<td>Documentation</td>
+<td>██████████ 100%</td>
+<td>✅ ADRs + Guides</td>
+</tr>
+<tr>
+<td>Deployment</td>
+<td>██████████ 100%</td>
+<td>✅ PyPI + Homebrew</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="architecture-map">Architecture Map</h2>
+<h3 id="layer-overview">Layer Overview</h3>
+<pre class="hljs"><code><div>┌──────────────────────────────────────────────────────────────────────────┐
+│                         ORCHESTRATION LAYER                              │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────┐  │
+│  │   main.py       │    │   ui/app.py     │    │  core/bootstrap.py  │  │
+│  │   (CLI Entry)   │    │   (TUI Entry)   │    │  (Discovery Hub)    │  │
+│  └────────┬────────┘    └────────┬────────┘    └──────────┬──────────┘  │
+└───────────┼──────────────────────┼────────────────────────┼─────────────┘
+            │                      │                        │
+            ▼                      ▼                        ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                           SHARED ENGINE                                  │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │                    core/plugins.py (Registry)                     │  │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────────┐  │  │
+│  │  │ Registration│  │   Piping    │  │   TUI Routing &amp; Capture  │  │  │
+│  │  │   Mapping   │  │  Unix |     │  │   Real-time Streaming   │  │  │
+│  │  └─────────────┘  └─────────────┘  └──────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────┐  │
+│  │ config_manager  │    │    history.py   │    │   orchestration.py  │  │
+│  │   (Settings)    │    │   (Undo/Redo)   │    │   (Cognitive Flow)  │  │
+│  └─────────────────┘    └─────────────────┘    └─────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────┘
+            │
+            ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         COMMAND FRAMEWORKS                               │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────────────┐│
+│  │ project.py  │ │frameworks.py│ │  brain.py   │ │     sync.py         ││
+│  │ init,deploy │ │harvest,apply│ │  personas   │ │    git sync         ││
+│  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────────────┘│
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────────────┐│
+│  │  doctor.py  │ │   edit.py   │ │   grep.py   │ │    install.py       ││
+│  │ diagnostics │ │  neovim rpc │ │   search    │ │   marketplace       ││
+│  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────────────┘│
+└──────────────────────────────────────────────────────────────────────────┘
+            │
+            ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                      INTELLIGENCE &amp; MEMORY LAYER                         │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │                        memory/ (Vector DB)                        │  │
+│  │  ┌─────────────────────┐    ┌─────────────────────────────────┐  │  │
+│  │  │   LocalMemoryBank   │    │    RemoteMemoryBank (Pro)       │  │  │
+│  │  │     (ChromaDB)      │    │       (Pinecone)                │  │  │
+│  │  └─────────────────────┘    └─────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────┐  │
+│  │   mcp/server.py │    │   utils/ai.py   │    │   agents/sentinel   │  │
+│  │  (Tool Access)  │    │ (LLM Interface) │    │  (Governance AI)    │  │
+│  └─────────────────┘    └─────────────────┘    └─────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────┘
+            │
+            ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                          SECURITY LAYER (NEW)                            │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │                      agents/security.py                           │  │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌───────────────────┐  │  │
+│  │  │    ToolProxy    │  │  CircuitBreaker │  │   AgentIdentity   │  │  │
+│  │  │   (Sandbox)     │  │  (Fail-safe)    │  │   (Capability)    │  │  │
+│  │  └─────────────────┘  └─────────────────┘  └───────────────────┘  │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │                    agents/openclaw_adapter.py                      │  │
+│  │              External Agent Sandbox (Third-party AI)               │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│  ┌─────────────────┐    ┌─────────────────┐                            │
+│  │   core/audit.py │    │   core/sandbox  │                            │
+│  │  (JSONL Logs)   │    │  (Docker Exec)  │                            │
+│  └─────────────────┘    └─────────────────┘                            │
+└──────────────────────────────────────────────────────────────────────────┘
+            │
+            ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                            TUI LAYER (Textual)                           │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │                         ui/screens/                               │  │
+│  │  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────────────┐  │  │
+│  │  │ dashboard │ │  harvest  │ │management │ │    brainstorm     │  │  │
+│  │  │  (Main)   │ │ (Skills)  │ │ (Project) │ │    (Creative)     │  │  │
+│  │  └───────────┘ └───────────┘ └───────────┘ └───────────────────┘  │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │                         ui/widgets/                               │  │
+│  │  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────────────┐  │  │
+│  │  │  ai_agent │ │ ai_block  │ │  output   │ │  kinetic_input    │  │  │
+│  │  │ (Chat)    │ │ (Code)    │ │ (Console) │ │   (Smart Input)   │  │  │
+│  │  └───────────┘ └───────────┘ └───────────┘ └───────────────────┘  │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  ui/styles.tcss — Glassmorphism Design System                     │  │
+│  │  • Transparent surfaces (30-45% opacity)                          │  │
+│  │  • High-density borders                                           │  │
+│  │  • Cinematic animations (typewriter, matrix)                      │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────┘
+</div></code></pre>
+<h3 id="core-layers-description">Core Layers Description</h3>
+<h4 id="1-orchestration-layer">1. Orchestration Layer</h4>
+<p>The entry points for JCapy. <code>main.py</code> handles direct CLI calls, while <code>JCapyApp</code> (Textual) provides the immersive terminal experience. <code>bootstrap.py</code> serves as the glue, discovery, and registration hub.</p>
+<h4 id="2-shared-engine-command-registry">2. Shared Engine (Command Registry)</h4>
+<p>The <code>CommandRegistry</code> in <code>plugins.py</code> is the heart of JCapy. It handles:</p>
+<ul>
+<li><strong>Registration</strong>: Mapping command names to Python functions</li>
+<li><strong>Piping</strong>: Unix-style <code>|</code> logic between commands</li>
+<li><strong>Capturing</strong>: Real-time output streaming from commands to the UI</li>
+<li><strong>TUI Routing</strong>: Native mapping of interactive commands to Textual screens</li>
+</ul>
+<h4 id="3-modular-command-frameworks">3. Modular Command Frameworks</h4>
+<p>Commands are decoupled from the core UI:</p>
+<ul>
+<li><strong>Project</strong>: Management of local scaffolding and deployment</li>
+<li><strong>Skills</strong>: The &quot;Knowledge&quot; aspect—harvesting patterns and applying them</li>
+<li><strong>Personas</strong>: Identity management and environment isolation</li>
+</ul>
+<h4 id="4-ui-design-system">4. UI Design System</h4>
+<p>Built on Textual, featuring:</p>
+<ul>
+<li><strong>Glassmorphism</strong>: Layered transparency and dynamic focus effects defined in <code>styles.tcss</code></li>
+<li><strong>HUD (Heads-Up Display)</strong>: Real-time system pulse and project status widgets</li>
+<li><strong>Dual Terminal</strong>: Side-by-side execution and command history logs</li>
+</ul>
+<h4 id="5-memory--intelligence">5. Memory &amp; Intelligence</h4>
+<ul>
+<li><strong>Vector Memory</strong>: ChromaDB storage for long-term project context</li>
+<li><strong>MCP Server</strong>: Integration with the Model Context Protocol for advanced agentic tool-use</li>
+<li><strong>AI Utils</strong>: Provider-agnostic abstraction for Gemini, OpenAI, etc.</li>
+</ul>
+<h4 id="6-security-layer-new-in-v418">6. Security Layer (NEW in v4.1.8)</h4>
+<ul>
+<li><strong>ToolProxy</strong>: Sandboxed tool execution with approval callbacks</li>
+<li><strong>CircuitBreaker</strong>: Fail-safe monitoring for rogue agent prevention</li>
+<li><strong>AgentIdentity</strong>: Capability-based access control manifests</li>
+<li><strong>OpenClawAdapter</strong>: Strict sandbox for third-party agent integration</li>
+</ul>
+<hr>
+<h2 id="tech-stack">Tech Stack</h2>
+<h3 id="core-dependencies">Core Dependencies</h3>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Technology</th>
+<th>Version</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Language</strong></td>
+<td>Python</td>
+<td>3.11+</td>
+<td>Type hints, Async support, Modern syntax</td>
+</tr>
+<tr>
+<td><strong>UI Framework</strong></td>
+<td>Textual</td>
+<td>&gt;= 0.50.0</td>
+<td>TUI, Reactive, CSS-based styling</td>
+</tr>
+<tr>
+<td><strong>Rich Output</strong></td>
+<td>Rich</td>
+<td>&gt;= 13.0.0</td>
+<td>Markdown, Tables, Syntax highlighting</td>
+</tr>
+<tr>
+<td><strong>Vector Memory (Local)</strong></td>
+<td>ChromaDB</td>
+<td>&gt;= 0.4.0</td>
+<td>Local vector storage</td>
+</tr>
+<tr>
+<td><strong>Vector Memory (Pro)</strong></td>
+<td>Pinecone</td>
+<td>&gt;= 3.0.0</td>
+<td>Remote/cloud vector storage</td>
+</tr>
+<tr>
+<td><strong>Agent Protocol</strong></td>
+<td>MCP</td>
+<td>&gt;= 1.2.0</td>
+<td>Model Context Protocol, Tool integration</td>
+</tr>
+<tr>
+<td><strong>Configuration</strong></td>
+<td>PyYAML</td>
+<td>&gt;= 6.0</td>
+<td>YAML parsing</td>
+</tr>
+<tr>
+<td><strong>Environment</strong></td>
+<td>python-dotenv</td>
+<td>&gt;= 1.0.0</td>
+<td>.env file management</td>
+</tr>
+<tr>
+<td><strong>Telemetry</strong></td>
+<td>PostHog</td>
+<td>&gt;= 3.0.0</td>
+<td>Ethical analytics, Local-first</td>
+</tr>
+</tbody>
+</table>
+<h3 id="architectural-patterns">Architectural Patterns</h3>
+<table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Domain-Driven Design (DDD)</strong></td>
+<td><code>core/</code> → Business logic (no UI deps)</td>
+</tr>
+<tr>
+<td></td>
+<td><code>services/</code> → Stateless providers</td>
+</tr>
+<tr>
+<td></td>
+<td><code>ui/</code> → Presentation only</td>
+</tr>
+<tr>
+<td><strong>Plugin System</strong></td>
+<td><code>jcapy.yaml</code> manifest (mandatory)</td>
+</tr>
+<tr>
+<td></td>
+<td><code>CommandRegistry</code> (routing)</td>
+</tr>
+<tr>
+<td></td>
+<td>Class-based commands (<code>CommandBase</code>)</td>
+</tr>
+<tr>
+<td><strong>Event-Driven</strong></td>
+<td><code>core/bus.py</code> (Async Event Bus)</td>
+</tr>
+<tr>
+<td></td>
+<td><code>core/audit.py</code> (JSONL persistence)</td>
+</tr>
+<tr>
+<td><strong>Security Boundary</strong></td>
+<td><code>agents/security.py</code> (ToolProxy)</td>
+</tr>
+<tr>
+<td></td>
+<td>CircuitBreaker (fail-safe)</td>
+</tr>
+<tr>
+<td></td>
+<td>AgentIdentity (capability manifest)</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="version-evolution">Version Evolution</h2>
+<h3 id="version-history">Version History</h3>
+<table>
+<thead>
+<tr>
+<th>Version</th>
+<th>Phase</th>
+<th>Key Features</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>v1.x (Legacy)</strong></td>
+<td>Research &amp; Discovery</td>
+<td>• Basic CLI structure</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>• Initial command parsing</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>• Simple project scaffolding</td>
+</tr>
+<tr>
+<td><strong>v2.x (Evolved)</strong></td>
+<td>Design &amp; Strategy</td>
+<td>• TUI introduction (Textual)</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>• Glassmorphism design system</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>• Basic memory (local)</td>
+</tr>
+<tr>
+<td><strong>v3.x (Mature)</strong></td>
+<td>Core Enhancements</td>
+<td>• Real-time command streaming</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>• Command piping (Unix |)</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>• Neovim RPC integration</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>• grep, edit commands</td>
+</tr>
+<tr>
+<td><strong>v4.0 (Current)</strong></td>
+<td>UX/UI Polish</td>
+<td>• Cinematic animations</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>• Full Glassmorphism</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>• Skills Registry (formal)</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>• MCP Server integration</td>
+</tr>
+<tr>
+<td><strong>v4.1.8 (NOW)</strong></td>
+<td>Security &amp; Enterprise</td>
+<td>★ OWASP Agentic Security (ASI02-ASI10)</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>★ AgentIdentity + ToolProxy sandbox</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>★ CircuitBreaker fail-safe</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>★ OpenClaw adapter (external agents)</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>★ Human-in-the-Loop interventions</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>★ Formal Skills Registry (9 skills)</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>★ JSONL Audit logging</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>★ Async Event Bus</td>
+</tr>
+</tbody>
+</table>
+<h3 id="capability-growth-v1-%E2%86%92-v418">Capability Growth (v1 → v4.1.8)</h3>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>v1.x</th>
+<th>v4.1.8</th>
+<th>Growth</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Commands</td>
+<td>4</td>
+<td>20+</td>
+<td>5x</td>
+</tr>
+<tr>
+<td>Security</td>
+<td>None</td>
+<td>OWASP compliant</td>
+<td>∞</td>
+</tr>
+<tr>
+<td>Memory</td>
+<td>Local only</td>
+<td>Local + Remote</td>
+<td>2x</td>
+</tr>
+<tr>
+<td>UI Quality</td>
+<td>Basic</td>
+<td>Glassmorphism</td>
+<td>10x</td>
+</tr>
+<tr>
+<td>Plugin System</td>
+<td>Ad-hoc</td>
+<td>Formal</td>
+<td>3x</td>
+</tr>
+<tr>
+<td>Testing</td>
+<td>0 tests</td>
+<td>103 tests</td>
+<td>∞</td>
+</tr>
+<tr>
+<td>Documentation</td>
+<td>README</td>
+<td>Full docs</td>
+<td>10x</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="industry-comparison">Industry Comparison</h2>
+<h3 id="vs-apple-intelligence">VS Apple Intelligence</h3>
+<h4 id="similarities">Similarities</h4>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Local-First Processing</td>
+<td>Data stays on device</td>
+</tr>
+<tr>
+<td>Privacy by Design</td>
+<td>Shadow logs make &quot;black box&quot; transparent</td>
+</tr>
+<tr>
+<td>Cinematic UX</td>
+<td>Animations, premium feel</td>
+</tr>
+</tbody>
+</table>
+<h4 id="differentiation">Differentiation</h4>
+<table>
+<thead>
+<tr>
+<th>Apple Intelligence</th>
+<th>JCapy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>❌ Walled garden</td>
+<td>✅ Open source, hackable</td>
+</tr>
+<tr>
+<td>❌ Apple ecosystem only</td>
+<td>✅ Cross-platform (Linux/macOS)</td>
+</tr>
+<tr>
+<td>❌ Closed source</td>
+<td>✅ Full transparency</td>
+</tr>
+<tr>
+<td>❌ Consumer-focused</td>
+<td>✅ Developer-focused</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Position:</strong> &quot;The Apple Intelligence of the Terminal&quot;</p>
+<hr>
+<h3 id="vs-microsoft-copilot--github-copilot">VS Microsoft Copilot / GitHub Copilot</h3>
+<h4 id="similarities">Similarities</h4>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AI-assisted development</td>
+<td>Code suggestions, automation</td>
+</tr>
+<tr>
+<td>Plugin/Extension system</td>
+<td>Marketplace ecosystem</td>
+</tr>
+<tr>
+<td>Multi-language support</td>
+<td>Works with various stacks</td>
+</tr>
+</tbody>
+</table>
+<h4 id="differentiation">Differentiation</h4>
+<table>
+<thead>
+<tr>
+<th>GitHub Copilot</th>
+<th>JCapy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>❌ Cloud-first</td>
+<td>✅ Local-first</td>
+</tr>
+<tr>
+<td>❌ Per-seat licensing</td>
+<td>✅ Free (Community)</td>
+</tr>
+<tr>
+<td>❌ Autocomplete tool</td>
+<td>✅ Full agent (harvest, apply)</td>
+</tr>
+<tr>
+<td>❌ Data sent to Azure</td>
+<td>✅ Data stays local</td>
+</tr>
+<tr>
+<td>❌ Generic skills</td>
+<td>✅ Hyper-niche skills (K8s, etc)</td>
+</tr>
+<tr>
+<td>❌ No audit trail</td>
+<td>✅ Full JSONL audit logs</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Position:</strong> &quot;The Open Source Co-Founder&quot;</p>
+<hr>
+<h3 id="vs-google-adk--meta-are--uber-utask">VS Google ADK / Meta ARE / Uber uTask</h3>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Industry Standard</th>
+<th>JCapy v4.1.8</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Skills Registry</strong></td>
+<td>Centralized, Versioned</td>
+<td>✅ Formal jcapy-skills with manifests</td>
+</tr>
+<tr>
+<td><strong>Orchestration</strong></td>
+<td>Multi-Agent, Hierarchical</td>
+<td>✅ Cognitive Split (Planner/Executor)</td>
+</tr>
+<tr>
+<td><strong>Safety</strong></td>
+<td>Sandboxed, RBAC</td>
+<td>✅ ToolProxy + Docker Sandbox</td>
+</tr>
+<tr>
+<td><strong>Observability</strong></td>
+<td>Audit Logs, Event Bus</td>
+<td>✅ JSONL Audit + Async Event Bus</td>
+</tr>
+<tr>
+<td><strong>Governance</strong></td>
+<td>Human-in-Loop</td>
+<td>✅ Project Sentinel + HITL Approvals</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Gap Status:</strong> ✅ ALL GAPS RESOLVED (100%)</p>
+<hr>
+<h2 id="owasp-security-compliance">OWASP Security Compliance</h2>
+<h3 id="owasp-top-10-for-agentic-ai-applications-2026">OWASP Top 10 for Agentic AI Applications 2026</h3>
+<table>
+<thead>
+<tr>
+<th>OWASP Risk</th>
+<th>Description</th>
+<th>JCapy Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ASI02</strong></td>
+<td>Tool Misuse</td>
+<td>✅ ToolProxy Sandbox with approval callbacks</td>
+</tr>
+<tr>
+<td><strong>ASI03</strong></td>
+<td>Privilege Abuse</td>
+<td>✅ AgentIdentity with capability manifests</td>
+</tr>
+<tr>
+<td><strong>ASI05</strong></td>
+<td>Remote Code Execution</td>
+<td>✅ ToolProxy + Docker Sandboxed execution</td>
+</tr>
+<tr>
+<td><strong>ASI06</strong></td>
+<td>Context Poisoning</td>
+<td>✅ Hashed memory chains for immutability</td>
+</tr>
+<tr>
+<td><strong>ASI08</strong></td>
+<td>Cascading Failures</td>
+<td>✅ CircuitBreaker with rate limiting</td>
+</tr>
+<tr>
+<td><strong>ASI10</strong></td>
+<td>Rogue Agents</td>
+<td>✅ CircuitBreaker with auto-termination</td>
+</tr>
+</tbody>
+</table>
+<h3 id="security-architecture-components">Security Architecture Components</h3>
+<pre class="hljs"><code><div>┌─────────────────────────────────────────────────────────────────────────┐
+│                        SECURITY ARCHITECTURE                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                     AgentIdentity (ASI03)                       │   │
+│  │  • Capability manifests (allowed_scopes)                        │   │
+│  │  • Name-based identification                                    │   │
+│  │  • Scope-based execution control                                │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                      ToolProxy (ASI02, ASI05)                   │   │
+│  │  • Unauthorized tool blocking                                   │   │
+│  │  • Safe tool execution wrapper                                  │   │
+│  │  • Human-in-the-Loop approval callbacks                         │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                   CircuitBreaker (ASI08, ASI10)                 │   │
+│  │  • Failure threshold monitoring                                 │   │
+│  │  • Automatic trip on excessive failures                         │   │
+│  │  • Rate limiting for agent operations                           │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                   OpenClawAdapter (External)                    │   │
+│  │  • Strict sandbox for third-party agents                        │   │
+│  │  • No system access by default                                  │   │
+│  │  • Stricter CircuitBreaker (max_failures=1)                     │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                      Audit Logging                              │   │
+│  │  • JSONL persistent logs (~/.jcapy/shadow_log.jsonl)            │   │
+│  │  • Event-based logging via Async Event Bus                      │   │
+│  │  • Full session audit trail                                     │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+</div></code></pre>
+<hr>
+<h2 id="distribution-channels">Distribution Channels</h2>
+<h3 id="pypi-pip">PyPI (pip)</h3>
+<pre class="hljs"><code><div>pip install jcapy
+</div></code></pre>
+<p><strong>Available Packages:</strong></p>
+<ul>
+<li><code>jcapy-4.1.8.tar.gz</code></li>
+<li><code>jcapy-4.1.8-py3-none-any.whl</code></li>
+</ul>
+<h3 id="homebrew">Homebrew</h3>
+<pre class="hljs"><code><div>brew install ponli550/jcapy/jcapy
+</div></code></pre>
+<p><strong>Formula:</strong> <code>homebrew-JCapy/Formula/jcapy.rb</code></p>
+<h3 id="docker-planned">Docker (Planned)</h3>
+<pre class="hljs"><code><div>docker-compose up
+</div></code></pre>
+<p><strong>Configuration:</strong> <code>docker-compose.yml</code> ready for containerized deployment</p>
+<hr>
+<h2 id="key-differentiators">Key Differentiators</h2>
+<h3 id="1-one-army-philosophy">1. One-Army Philosophy</h3>
+<blockquote>
+<p>&quot;Build like a team of ten, run as an army of one&quot;</p>
+</blockquote>
+<p>Solo developers get enterprise-grade capabilities without the overhead of a full team.</p>
+<h3 id="2-local-first-privacy">2. Local-First Privacy</h3>
+<ul>
+<li>Data never leaves without explicit opt-in</li>
+<li>Shadow logs provide full transparency</li>
+<li>No &quot;black box&quot; AI behavior</li>
+</ul>
+<h3 id="3-formal-skills-registry">3. Formal Skills Registry</h3>
+<ul>
+<li>9 production-ready skills with manifests</li>
+<li>Semantic versioning per skill</li>
+<li>Dependency declaration support</li>
+<li>Permission scope declarations</li>
+</ul>
+<h3 id="4-native-agentic-security">4. Native Agentic Security</h3>
+<ul>
+<li>OWASP 2026 compliant from the ground up</li>
+<li>Safe external agent integration (OpenClaw/Clawdbot)</li>
+<li>Human-in-the-Loop interventions</li>
+</ul>
+<h3 id="5-glassmorphism-tui">5. Glassmorphism TUI</h3>
+<ul>
+<li>Premium terminal experience</li>
+<li>Cinematic animations (typewriter, matrix)</li>
+<li>Keyboard-first design</li>
+<li>High-density borders</li>
+</ul>
+<h3 id="6-hybrid-memory">6. Hybrid Memory</h3>
+<ul>
+<li><strong>Local:</strong> ChromaDB for privacy</li>
+<li><strong>Remote (Pro):</strong> Pinecone for scale</li>
+<li>Own your data, scale when needed</li>
+</ul>
+<hr>
+<h2 id="skills-registry">Skills Registry</h2>
+<h3 id="available-skills-9-total">Available Skills (9 Total)</h3>
+<table>
+<thead>
+<tr>
+<th>Skill</th>
+<th>Purpose</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hello-world</code></td>
+<td>Plugin template/example</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>systematic-debugging</code></td>
+<td>Structured debugging workflow</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>test-driven-development</code></td>
+<td>TDD workflow</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>architectural-design</code></td>
+<td>System design patterns</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>aws</code></td>
+<td>AWS infrastructure skills</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>code-review-checklist</code></td>
+<td>PR review automation</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>kanban</code></td>
+<td>Project management</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>mcp-creator</code></td>
+<td>MCP server creation</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>scale-infrastructure</code></td>
+<td>Scaling &amp; performance</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>security-audit</code></td>
+<td>Security auditing</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<h3 id="skill-manifest-structure">Skill Manifest Structure</h3>
+<p>Every skill includes a <code>jcapy.yaml</code> manifest with:</p>
+<pre class="hljs"><code><div><span class="hljs-attr">name:</span> <span class="hljs-string">skill-name</span>
+<span class="hljs-attr">version:</span> <span class="hljs-number">1.0</span><span class="hljs-number">.0</span>
+<span class="hljs-attr">description:</span> <span class="hljs-string">Skill</span> <span class="hljs-string">description</span>
+<span class="hljs-attr">author:</span> <span class="hljs-string">Author</span> <span class="hljs-string">Name</span>
+<span class="hljs-attr">dependencies:</span>
+  <span class="hljs-bullet">-</span> <span class="hljs-string">dep1</span>
+  <span class="hljs-bullet">-</span> <span class="hljs-string">dep2</span>
+<span class="hljs-attr">permissions:</span>
+  <span class="hljs-bullet">-</span> <span class="hljs-string">read:files</span>
+  <span class="hljs-bullet">-</span> <span class="hljs-string">tool:safe_read</span>
+</div></code></pre>
+<hr>
+<h2 id="future-roadmap">Future Roadmap</h2>
+<h3 id="jcapy-20-%22orbital-architecture%22-planned">JCapy 2.0 &quot;Orbital Architecture&quot; (Planned)</h3>
+<h4 id="client-server-split">Client-Server Split</h4>
+<pre class="hljs"><code><div>┌─────────────────────────────────────────────────────────────────────────┐
+│                                                                         │
+│   jcapyd (Daemon)                                                       │
+│   ├── Background intelligence service                                   │
+│   ├── Persistent memory management                                      │
+│   └── Event-driven processing                                           │
+│                                                                         │
+│   jcapy-cli (Client)                                                    │
+│   ├── Lightweight terminal interface                                    │
+│   ├── Connects to daemon via IPC                                        │
+│   └── Zero-latency feel                                                 │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+</div></code></pre>
+<h4 id="security-fortress">Security Fortress</h4>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>mTLS encryption</td>
+<td>Secure communications</td>
+</tr>
+<tr>
+<td>WASM Sandboxing</td>
+<td>Isolated execution</td>
+</tr>
+<tr>
+<td>Secret Vault</td>
+<td>Secure credential storage</td>
+</tr>
+</tbody>
+</table>
+<h4 id="real-time-infrastructure">Real-time Infrastructure</h4>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ZeroMQ streaming</td>
+<td>Sub-millisecond log delivery</td>
+</tr>
+<tr>
+<td>WebSocket bridge</td>
+<td>Web control plane support</td>
+</tr>
+</tbody>
+</table>
+<h4 id="external-integrations">External Integrations</h4>
+<table>
+<thead>
+<tr>
+<th>Integration</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Clawdbot Bridge</td>
+<td>Non-dev tasks (reminders, chat)</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="summary">Summary</h2>
+<p>JCapy v4.1.8 is a production-ready <strong>&quot;Knowledge Operating System&quot;</strong> designed for the <strong>&quot;One-Army Protocol&quot;</strong> — enabling solo developers to operate with the efficiency of a full team.</p>
+<h3 id="status-%E2%9C%85-100-complete">Status: ✅ 100% COMPLETE</h3>
+<ul>
+<li><strong>103 tests passing</strong></li>
+<li><strong>OWASP 2026 compliant</strong></li>
+<li><strong>PyPI + Homebrew distribution</strong></li>
+<li><strong>Full documentation (ADRs, guides)</strong></li>
+<li><strong>9 formal skills with manifests</strong></li>
+</ul>
+<hr>
+<blockquote>
+<p><em>&quot;The Linux Moment&quot; — Just as Linux offered a powerful, open alternative to proprietary Unix, JCapy offers a powerful, open alternative to proprietary AI agents.</em></p>
+</blockquote>
+<hr>
+<p><strong>Last Updated:</strong> 2026-02-20<br>
+<strong>Version:</strong> 4.1.8<br>
+<strong>Author:</strong> Irfan Ali</p>
+
+</body>
+</html>

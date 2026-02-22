@@ -6,6 +6,7 @@ from textual.screen import Screen, ModalScreen
 from textual import work
 
 from jcapy.core.plugins import get_registry, MockArgs
+from jcapy.core.service import get_service
 from jcapy.core.base import CommandResult, ResultStatus
 from jcapy.ui.screens.dashboard import DashboardScreen
 from jcapy.ui.screens.management_screen import ManagementScreen
@@ -20,23 +21,38 @@ from jcapy.ui.grammar import GrammarProcessor, Action
 import shlex
 import time
 from typing import Optional, Callable
+import logging
+
+logger = logging.getLogger('jcapy.tui')
+
+# ZMQ Bridge integration for Web Control Plane
+_zmq_bridge = None
 
 class ModeHUD(Static):
-    """A visual indicator for the current input mode."""
+    """A visual indicator for the current input mode and active persona/role."""
     def on_mount(self) -> None:
         self.watch(self.app, "current_mode", self.update_mode)
 
     def update_mode(self, mode: InputMode) -> None:
-        # persona = CONFIG_MANAGER.get("current_persona", "programmer")
-        # Since HUD is a widget, we can access app.config or just use global
         from jcapy.config import CONFIG_MANAGER
         persona = CONFIG_MANAGER.get("current_persona", "N/A")
+
+        # Role logic: Dashboard typically implies Sentinel (Planning),
+        # Terminal typically implies Executor (Action).
+        role = "SENTINEL" if self.app.screen.id == "dashboard" else "EXECUTOR"
+        role_color = "magenta" if role == "SENTINEL" else "cyan"
 
         color = "cyan"
         if mode == InputMode.INSERT: color = "magenta"
         elif mode == InputMode.VISUAL: color = "yellow"
         elif mode == InputMode.COMMAND: color = "green"
-        self.update(f"| [bold {color}]{mode.name}[/] | [dim]Persona:[/] [bold cyan]{persona.capitalize()}[/] |")
+
+        content = (
+            f"[bold {color}][/][bold white on {color}]{mode.name}[/][bold {color}][/]  "
+            f"[dim]Role:[/] [bold {role_color}]{role}[/] [dim] • [/] "
+            f"[dim]Persona:[/] [bold cyan]{persona.capitalize()}[/]"
+        )
+        self.update(content)
 class JCapyApp(App):
     """JCapy: The Knowledge Operating System"""
 
@@ -70,6 +86,8 @@ class JCapyApp(App):
     def __init__(self, start_screen: str = "dashboard", **kwargs):
         self.start_screen = start_screen
         self.grammar = GrammarProcessor()
+        self.is_orbital = False
+        self.client = None
         super().__init__(**kwargs)
 
     def switch_screen(self, screen: str | Screen) -> AwaitMount:
@@ -112,6 +130,9 @@ class JCapyApp(App):
         theme = get_ux_preference("theme")
         self.apply_theme(theme)
 
+        # Initialize ZMQ bridge for Web Control Plane communication
+        self._init_zmq_bridge()
+
         # Write welcome message so terminal view isn't blank
         log = self.query_one("#terminal-log", RichLog)
         log.write("[bold cyan]JCapy Terminal[/bold cyan]  [dim]Press Ctrl+P or : to run commands[/dim]\n")
@@ -129,6 +150,78 @@ class JCapyApp(App):
 
         # Auto-focus the terminal input
         self.query_one("#term-input").focus()
+
+    def _init_zmq_bridge(self) -> None:
+        """Initialize ZMQ bridge for TUI ↔ Web communication."""
+        global _zmq_bridge
+        try:
+            from jcapy.core.zmq_publisher import init_zmq_bridge, start_zmq_bridge
+            from jcapy.core.bus import get_event_bus, attach_zmq_to_bus
+
+            # Check if bridge already exists (e.g., from daemon)
+            from jcapy.core.zmq_publisher import get_zmq_bridge
+            _zmq_bridge = get_zmq_bridge()
+
+            if _zmq_bridge and _zmq_bridge.is_running:
+                logger.info("ZMQ bridge already running (from daemon)")
+                attach_zmq_to_bus()
+            else:
+                # Create new bridge
+                _zmq_bridge = init_zmq_bridge(
+                    pub_port=5555,
+                    rpc_port=5556,
+                    command_handler=self._handle_web_command
+                )
+
+                if start_zmq_bridge():
+                    logger.info("✅ TUI ZMQ Bridge started")
+                    attach_zmq_to_bus()
+                else:
+                    logger.warning("⚠️ TUI ZMQ Bridge failed to start")
+
+        except ImportError as e:
+            logger.warning(f"⚠️ ZMQ not available: {e}")
+        except Exception as e:
+            logger.error(f"Failed to initialize ZMQ bridge: {e}")
+
+    def _handle_web_command(self, command: str, params: dict) -> dict:
+        """Handle commands received from Web Control Plane."""
+        logger.info(f"Received Web command: {command}")
+
+        if command == "EXECUTE_COMMAND":
+            cmd_str = params.get("command", "")
+            if cmd_str:
+                # Execute in TUI
+                self.call_from_thread(self.run_command, cmd_str)
+                return {"status": "executed", "command": cmd_str}
+            return {"status": "error", "message": "No command provided"}
+
+        elif command == "SWITCH_PERSONA":
+            persona = params.get("persona", "")
+            if persona:
+                self.call_from_thread(self.run_command, f"persona activate {persona}")
+                return {"status": "ok", "persona": persona}
+            return {"status": "error", "message": "No persona specified"}
+
+        elif command == "GET_STATUS":
+            return {
+                "status": "ok",
+                "mode": self.current_mode.name,
+                "persona": CONFIG_MANAGER.get("current_persona", "N/A")
+            }
+
+        else:
+            return {"status": "error", "message": f"Unknown command: {command}"}
+
+    def on_unmount(self) -> None:
+        """Called when app shuts down."""
+        global _zmq_bridge
+        if _zmq_bridge:
+            try:
+                _zmq_bridge.stop()
+                logger.info("ZMQ bridge stopped")
+            except Exception as e:
+                logger.error(f"Error stopping ZMQ bridge: {e}")
 
     def on_config_updated(self, message: ConfigUpdated) -> None:
         """Handle configuration updates."""
@@ -410,8 +503,19 @@ class JCapyApp(App):
             except:
                 pass
 
-        registry = get_registry()
-        result: CommandResult = registry.execute_string(command_str, log_callback=streaming_callback, tui_data=tui_data)
+        if self.is_orbital and self.client:
+            # Delegate to Daemon via gRPC
+            response = self.client.execute(command_str, context=tui_data)
+            # Map gRPC Response to CommandResult
+            result = CommandResult(
+                status=ResultStatus.SUCCESS if response.status == "success" else ResultStatus.FAILURE,
+                message=response.message,
+                data=json.loads(response.result_data_json) if response.result_data_json else {}
+            )
+        else:
+            # Local Execution
+            service = get_service()
+            result: CommandResult = service.execute(command_str, log_callback=streaming_callback, tui_data=tui_data)
 
         # --- Shell Fallback ---
         if result.status == ResultStatus.FAILURE and result.error_code == "UNKNOWN_COMMAND":

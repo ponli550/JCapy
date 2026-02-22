@@ -5,6 +5,7 @@ import hashlib
 from typing import List, Dict, Any, Optional
 from rich.console import Console
 from jcapy.memory_interfaces import MemoryInterface
+from jcapy.core.vault import resolve_secret
 
 try:
     from pinecone import Pinecone
@@ -23,9 +24,9 @@ class RemoteMemoryBank(MemoryInterface):
             self.active = False
             return
 
-        self.api_key = os.getenv("PINECONE_API_KEY")
-        self.index_name = os.getenv("PINECONE_INDEX", "jcapy")
-        self.model_name = os.getenv("PINECONE_MODEL", "llama-text-embed-v2")
+        self.api_key = resolve_secret("PINECONE_API_KEY")
+        self.index_name = resolve_secret("PINECONE_INDEX", "jcapy")
+        self.model_name = resolve_secret("PINECONE_MODEL", "llama-text-embed-v2")
 
         if not self.api_key:
              console.print("[yellow]Warning: PINECONE_API_KEY not set. Remote memory disabled.[/yellow]")

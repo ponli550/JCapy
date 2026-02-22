@@ -11,8 +11,8 @@ Screen {
 
 /* Glassmorphism Tokens */
 .glass {
-    background: $surface 45%;
-    border: tall $accent 20%;
+    background: $surface 30%;
+    border: tall $accent 15%;
     padding: 1 2;
     margin: 1;
     transition: background 300ms, border 300ms;
@@ -22,11 +22,11 @@ Screen {
     dock: top;
     height: 3;
     content-align: center middle;
-    background: $background;
-    color: $accent;
-    border-bottom: tall $accent 30%;
+    background: $surface 20%;
+    color: $text;
+    border-bottom: solid $accent 15%;
     text-style: bold;
-    padding: 0 2;
+    padding: 0 4;
 }
 
 .glass-card {

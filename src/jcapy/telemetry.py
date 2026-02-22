@@ -6,7 +6,10 @@ import time
 from typing import Dict, Any, Optional
 from jcapy.config import load_config, get_all_ux_preferences
 import dotenv
-dotenv.load_dotenv()
+try:
+    dotenv.load_dotenv()
+except (ImportError, OSError):
+    pass
 from posthog import Posthog
 
 # Ideally use posthog-python, but we might not want to force dependency immediately
