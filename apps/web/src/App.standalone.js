@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Shield, Radio, Activity, Terminal, Zap, Power, AlertTriangle, RefreshCcw, Check, X, ShieldAlert, Cpu, Link, Unlink, Database, Send, Play, User, Settings, Cpu as CpuIcon, HardDrive, Clock, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { WebSocketBridge } from 'bridge-service';
+import { WebSocketBridge } from './bridgeService.js';
 
 function App() {
    const [isHalted, setIsHalted] = useState(false);

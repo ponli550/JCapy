@@ -1998,3 +1998,42 @@
 {"timestamp": "2026-02-20T15:07:05.379106", "topic": "THOUGHT", "event": {"type": "THOUGHT", "message": "High-density reasoning frame 1997 // AUDIT_TICK_1997", "timestamp": "15:07:05"}}
 {"timestamp": "2026-02-20T15:07:05.379216", "topic": "THOUGHT", "event": {"type": "THOUGHT", "message": "High-density reasoning frame 1998 // AUDIT_TICK_1998", "timestamp": "15:07:05"}}
 {"timestamp": "2026-02-20T15:07:05.379380", "topic": "THOUGHT", "event": {"type": "THOUGHT", "message": "High-density reasoning frame 1999 // AUDIT_TICK_1999", "timestamp": "15:07:05"}}
+{"timestamp": "2026-02-21T16:39:57.344822", "topic": "command_executed", "event": {"command": "apply", "status": "unknown", "result": "CommandResult(status=<ResultStatus.FAILURE: 'failure'>, message=\"'NoneType' object has no attribute 'lower'\", data=None, ui_hint=None, logs=[''], duration=0.0005471706390380859, error_code='AttributeError', silent=False)"}}
+{"timestamp": "2026-02-22T11:17:50.254875", "topic": "TEST_EVENT", "event": {"message": "bridge test"}}
+{"timestamp": "2026-02-22T11:18:19.509967", "topic": "TEST_EVENT_0", "event": {"message": "test message 0", "timestamp": 1771730299.50964}}
+{"timestamp": "2026-02-22T11:18:19.612164", "topic": "TEST_EVENT_1", "event": {"message": "test message 1", "timestamp": 1771730299.611372}}
+{"timestamp": "2026-02-22T11:18:19.714494", "topic": "TEST_EVENT_2", "event": {"message": "test message 2", "timestamp": 1771730299.71381}}
+{"timestamp": "2026-02-22T11:22:55.060829", "topic": "TERMINAL_OUTPUT", "event": {"line": "Test output line 1", "source": "tui"}}
+{"timestamp": "2026-02-22T11:22:55.063267", "topic": "HEARTBEAT", "event": {"timestamp": 1771730575.051898, "status": {"tasks_completed": 1}}}
+{"timestamp": "2026-02-22T11:22:56.053759", "topic": "TERMINAL_OUTPUT", "event": {"line": "Test output line 2", "source": "tui"}}
+{"timestamp": "2026-02-22T11:22:56.055096", "topic": "HEARTBEAT", "event": {"timestamp": 1771730576.053018, "status": {"tasks_completed": 2}}}
+{"timestamp": "2026-02-22T11:22:57.056036", "topic": "TERMINAL_OUTPUT", "event": {"line": "Test output line 3", "source": "tui"}}
+{"timestamp": "2026-02-22T11:22:57.056486", "topic": "HEARTBEAT", "event": {"timestamp": 1771730577.055012, "status": {"tasks_completed": 3}}}
+{"timestamp": "2026-02-22T11:22:58.056414", "topic": "TERMINAL_OUTPUT", "event": {"line": "Test output line 4", "source": "tui"}}
+{"timestamp": "2026-02-22T11:22:58.057024", "topic": "HEARTBEAT", "event": {"timestamp": 1771730578.0556328, "status": {"tasks_completed": 4}}}
+{"timestamp": "2026-02-22T11:22:59.061847", "topic": "TERMINAL_OUTPUT", "event": {"line": "Test output line 5", "source": "tui"}}
+{"timestamp": "2026-02-22T11:22:59.062323", "topic": "HEARTBEAT", "event": {"timestamp": 1771730579.060784, "status": {"tasks_completed": 5}}}
+{"timestamp": "2026-02-22T11:23:00.066976", "topic": "TERMINAL_OUTPUT", "event": {"line": "Test output line 6", "source": "tui"}}
+{"timestamp": "2026-02-22T11:23:00.067909", "topic": "HEARTBEAT", "event": {"timestamp": 1771730580.0650811, "status": {"tasks_completed": 6}}}
+{"timestamp": "2026-02-22T11:23:01.071694", "topic": "TERMINAL_OUTPUT", "event": {"line": "Test output line 7", "source": "tui"}}
+{"timestamp": "2026-02-22T11:23:01.072598", "topic": "HEARTBEAT", "event": {"timestamp": 1771730581.0704918, "status": {"tasks_completed": 7}}}
+{"timestamp": "2026-02-22T11:23:02.076895", "topic": "TERMINAL_OUTPUT", "event": {"line": "Test output line 8", "source": "tui"}}
+{"timestamp": "2026-02-22T11:23:02.077666", "topic": "HEARTBEAT", "event": {"timestamp": 1771730582.0758002, "status": {"tasks_completed": 8}}}
+{"timestamp": "2026-02-22T11:23:03.081960", "topic": "TERMINAL_OUTPUT", "event": {"line": "Test output line 9", "source": "tui"}}
+{"timestamp": "2026-02-22T11:23:03.083277", "topic": "HEARTBEAT", "event": {"timestamp": 1771730583.080893, "status": {"tasks_completed": 9}}}
+{"timestamp": "2026-02-22T11:24:42.625693", "topic": "TERMINAL_OUTPUT", "event": {"line": "Test line 1", "timestamp": 1771730682.618301}}
+{"timestamp": "2026-02-22T11:24:42.627460", "topic": "HEARTBEAT", "event": {"status": {"tasks_completed": 1}}}
+{"timestamp": "2026-02-22T11:24:43.120752", "topic": "TERMINAL_OUTPUT", "event": {"line": "Test line 2", "timestamp": 1771730683.1195211}}
+{"timestamp": "2026-02-22T11:24:43.125292", "topic": "HEARTBEAT", "event": {"status": {"tasks_completed": 2}}}
+{"timestamp": "2026-02-22T11:24:43.626897", "topic": "TERMINAL_OUTPUT", "event": {"line": "Test line 3", "timestamp": 1771730683.6248288}}
+{"timestamp": "2026-02-22T11:24:43.628297", "topic": "HEARTBEAT", "event": {"status": {"tasks_completed": 3}}}
+{"timestamp": "2026-02-22T11:24:44.130380", "topic": "TERMINAL_OUTPUT", "event": {"line": "Test line 4", "timestamp": 1771730684.128505}}
+{"timestamp": "2026-02-22T11:24:44.131908", "topic": "HEARTBEAT", "event": {"status": {"tasks_completed": 4}}}
+{"timestamp": "2026-02-22T11:42:57.991831", "topic": "TERMINAL_OUTPUT", "event": {"line": "[JCapy] Hello from TUI 1", "timestamp": 1771731777.986261}}
+{"timestamp": "2026-02-22T11:42:58.492828", "topic": "TERMINAL_OUTPUT", "event": {"line": "[JCapy] Hello from TUI 2", "timestamp": 1771731778.490916}}
+{"timestamp": "2026-02-22T11:42:58.997797", "topic": "TERMINAL_OUTPUT", "event": {"line": "[JCapy] Hello from TUI 3", "timestamp": 1771731778.996363}}
+{"timestamp": "2026-02-22T11:42:59.503551", "topic": "TERMINAL_OUTPUT", "event": {"line": "[JCapy] Hello from TUI 4", "timestamp": 1771731779.501719}}
+{"timestamp": "2026-02-22T11:52:10.174536", "topic": "TERMINAL_OUTPUT", "event": {"line": "[TUI] Event 1 at 1771732330.170645"}}
+{"timestamp": "2026-02-22T11:52:10.176719", "topic": "HEARTBEAT", "event": {"status": {"tasks_completed": 101}}}
+{"timestamp": "2026-02-22T11:52:10.473567", "topic": "TERMINAL_OUTPUT", "event": {"line": "[TUI] Event 2 at 1771732330.4718149"}}
+{"timestamp": "2026-02-22T11:52:10.474691", "topic": "HEARTBEAT", "event": {"status": {"tasks_completed": 102}}}

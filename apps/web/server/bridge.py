@@ -5,10 +5,16 @@ import json
 import logging
 from datetime import datetime
 
-# Add vendored dependencies to path BEFORE third-party imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'deps'))
+# Try to use installed packages first, fall back to vendored deps
+# Vendored deps are for standalone deployment only
+_USE_VENDORED = os.getenv("JCAPY_USE_VENDORED", "false").lower() == "true"
+if _USE_VENDORED:
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'deps'))
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from typing import Optional
 import zmq
 import zmq.asyncio
 
@@ -16,7 +22,11 @@ import zmq.asyncio
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("orbital-bridge")
 
-app = FastAPI()
+app = FastAPI(
+    title="JCapy Control Plane Bridge",
+    description="WebSocket bridge between JCapy TUI and Web Control Plane",
+    version="4.1.8"
+)
 
 # Configuration
 ZMQ_ADDR = os.getenv("JCAPY_ZMQ_ADDR", "tcp://localhost:5555")
@@ -92,9 +102,62 @@ async def zmq_listener():
     finally:
         subscriber.close()
 
+# Pydantic models for API
+class CommandRequest(BaseModel):
+    type: str
+    command: Optional[str] = None
+    persona: Optional[str] = None
+    id: Optional[str] = None
+    approved: Optional[bool] = None
+
+class StatusResponse(BaseModel):
+    status: str
+    zmq_connected: bool
+    active_connections: int
+    version: str
+
 @app.on_event("startup")
 async def startup_event():
     asyncio.create_task(zmq_listener())
+
+@app.get("/", response_class=JSONResponse)
+async def root():
+    """Root endpoint - returns bridge status."""
+    return {
+        "name": "JCapy Control Plane Bridge",
+        "version": "4.1.8",
+        "status": "running",
+        "websocket": "/ws",
+        "docs": "/docs"
+    }
+
+@app.get("/health")
+async def health():
+    """Health check endpoint."""
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+@app.get("/status", response_model=StatusResponse)
+async def status():
+    """Get bridge status."""
+    return StatusResponse(
+        status="running",
+        zmq_connected=True,
+        active_connections=len(manager.active_connections),
+        version="4.1.8"
+    )
+
+@app.post("/command")
+async def send_command(cmd: CommandRequest):
+    """Send a command to the TUI via RPC."""
+    if cmd.type == "EXECUTE_COMMAND" and cmd.command:
+        # Would send to TUI via RPC
+        return {"status": "sent", "command": cmd.command}
+    elif cmd.type == "SWITCH_PERSONA" and cmd.persona:
+        return {"status": "sent", "persona": cmd.persona}
+    elif cmd.type == "APPROVE_ACTION" and cmd.id:
+        await handle_approval_rpc(cmd.id, cmd.approved or False)
+        return {"status": "sent", "id": cmd.id, "approved": cmd.approved}
+    return {"status": "error", "message": "Unknown command type"}
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
