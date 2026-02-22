@@ -2,6 +2,7 @@
 from textual.widgets import Input
 from textual.binding import Binding
 from jcapy.core.history import HISTORY_MANAGER
+from jcapy.core.plugins import get_registry
 
 class KineticInput(Input):
     """An Input widget with terminal-like history navigation."""
@@ -9,6 +10,7 @@ class KineticInput(Input):
     BINDINGS = [
         Binding("up", "history_up", "Previous Command", show=False),
         Binding("down", "history_down", "Next Command", show=False),
+        Binding("tab", "autocomplete", "Autocomplete"),
     ]
 
     def __init__(self, *args, **kwargs):
@@ -48,4 +50,18 @@ class KineticInput(Input):
         elif self._history_index == len(self._history) - 1:
             self._history_index += 1
             self.value = self._current_input
+            self.cursor_position = len(self.value)
+    def action_autocomplete(self) -> None:
+        """Simple command autocomplete from registry."""
+        val = self.value.strip()
+        if not val:
+            return
+
+        registry = get_registry()
+        commands = list(registry._commands.keys()) + list(registry._aliases.keys())
+
+        matches = [c for c in commands if c.startswith(val)]
+        if matches:
+            # Pick first match for simplicity
+            self.value = matches[0] + " "
             self.cursor_position = len(self.value)

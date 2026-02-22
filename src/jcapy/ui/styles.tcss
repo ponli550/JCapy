@@ -84,7 +84,6 @@ Screen {
 #output-pane {
     width: 70%;
     height: 100%;
-    border-right: tall $accent 20%;
 }
 
 #input-pane {
@@ -426,4 +425,90 @@ HorizontalSplitter:hover {
 HorizontalSplitter.dragging {
     background: $accent 50%;
     color: $accent;
+}
+
+/* Approval Screen */
+ApprovalScreen {
+    align: center middle;
+    background: $background 40%;
+}
+
+#approval-dialog {
+    width: 60;
+    height: auto;
+    background: $surface;
+    border: tall $accent;
+    padding: 1 2;
+
+}
+
+#approval-title {
+    content-align: center middle;
+    text-style: bold;
+    width: 100%;
+}
+
+#approval-cmd {
+    background: $error 20%;
+    color: $error;
+    padding: 0 1;
+    margin: 1 0;
+    text-style: bold;
+}
+
+#approval-desc {
+    background: $surface-lighten-1 10%;
+    padding: 1;
+    margin: 1 0;
+    color: $text 80%;
+}
+
+#approval-actions {
+    height: 3;
+    margin-top: 1;
+    content-align: center middle;
+}
+
+#approval-actions Button {
+    margin: 0 1;
+    min-width: 15;
+}
+
+/* Intelligence Widgets */
+CommanderHUD {
+    background: $surface 10%;
+    color: $text 90%;
+    margin-top: 0;
+    margin-bottom: 0;
+    border-bottom: double $accent;
+    height: 4;
+    transition: background 500ms;
+}
+
+CommanderHUD:hover {
+    background: $surface 20%;
+}
+
+TaskSidebar {
+    width: 35;
+    background: $surface 20%;
+    border-left: tall $accent 15%;
+    transition: width 300ms;
+}
+
+TaskSidebar:hover {
+    background: $surface 25%;
+}
+
+#sidebar-task-list {
+    background: transparent;
+    border: none;
+}
+
+#task-list-title {
+    text-style: bold;
+    color: $accent;
+    border-bottom: dashed $accent 20%;
+    padding: 0 1;
+    content-align: center middle;
 }

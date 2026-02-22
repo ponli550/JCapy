@@ -18,10 +18,16 @@ from jcapy.ui.menu import terminal_hygiene
 from jcapy.ui.screens.prompt import TerminalPromptScreen
 from jcapy.ui.modes import InputMode
 from jcapy.ui.grammar import GrammarProcessor, Action
+from jcapy.ui.widgets.splitter import VerticalSplitter, SplitterUpdated
+from jcapy.ui.widgets.kinetic_input import KineticInput
+from jcapy.ui.widgets.task_sidebar import TaskSidebar
+from jcapy.ui.screens.approval import ApprovalScreen
+from jcapy.ui.widgets.commander_hud import CommanderHUD
 import shlex
 import time
-from typing import Optional, Callable
+from typing import Optional, Callable, Dict
 import logging
+import json
 
 logger = logging.getLogger('jcapy.tui')
 
@@ -81,6 +87,7 @@ class JCapyApp(App):
         "dashboard": DashboardScreen,
         "management": ManagementScreen,
         "startup": StartupScreen,
+        "approval": ApprovalScreen,
     }
 
     def __init__(self, start_screen: str = "dashboard", **kwargs):
@@ -105,6 +112,7 @@ class JCapyApp(App):
         header.tall = True
         yield header
         yield ModeHUD(id="mode-hud")
+        yield CommanderHUD(id="commander-hud")
         with Container(id="main-container"):
             with Horizontal(id="terminal-container"):
                 # Left Pane: Main Output
@@ -112,12 +120,19 @@ class JCapyApp(App):
                     yield Static("TERMINAL OUTPUT", classes="pane-label")
                     yield RichLog(id="terminal-log", highlight=True, markup=True, wrap=True)
 
-                # Right Pane: Command Center
+                yield VerticalSplitter(target_id="output-pane", is_left=True)
+
+                # Middle Pane: Command Center
                 with Vertical(id="input-pane"):
                     yield Static("COMMAND CENTER", classes="pane-label")
                     yield Static("[bold cyan]Command History[/]", classes="pane-header")
                     yield RichLog(id="history-log", highlight=True, markup=True)
-                    yield Input(placeholder="❯ Enter command...", id="term-input")
+                    yield KineticInput(placeholder="❯ Enter command...", id="term-input")
+
+                yield VerticalSplitter(target_id="input-pane", is_left=True)
+
+                # Right Pane: Task Sidebar (NEW)
+                yield TaskSidebar(id="task-sidebar")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -129,6 +144,14 @@ class JCapyApp(App):
         # Apply persistent theme
         theme = get_ux_preference("theme")
         self.apply_theme(theme)
+
+        # Restore pane dimensions
+        from jcapy.config import get_dashboard_dimensions
+        dims = get_dashboard_dimensions()
+        if "output-pane" in dims:
+             try:
+                 self.query_one("#output-pane").styles.width = dims["output-pane"]
+             except: pass
 
         # Initialize ZMQ bridge for Web Control Plane communication
         self._init_zmq_bridge()
@@ -242,6 +265,13 @@ class JCapyApp(App):
             self.notify("Enabled/Disabled commands updated.")
             # Refresh command palette if open?
             # It re-queries registry on open, so just closing/opening is enough.
+
+    def on_splitter_updated(self, message: SplitterUpdated) -> None:
+        """Persist pane resizing."""
+        from jcapy.config import get_dashboard_dimensions, set_dashboard_dimensions
+        dims = get_dashboard_dimensions()
+        dims[message.target_id] = message.value
+        set_dashboard_dimensions(dims)
 
     def on_descendant_focus(self, event) -> None:
         """Switch to INSERT mode automatically when an Input gains focus."""
@@ -413,6 +443,24 @@ class JCapyApp(App):
         # 0. Check if command is interactive → suspend TUI and run directly
         registry = get_registry()
         canonical = registry._aliases.get(cmd_clean, cmd_clean)
+
+        # --- Interactive Tool Approval (NEW) ---
+        # Sensitive patterns: rm, git push, publish, sudo, curl | bash
+        sensitive_patterns = [r"^rm\s", r"^git\s+push", r"^publish", r"^sudo", r"^curl.*\|\s*bash"]
+        import re
+        is_sensitive = any(re.search(p, command_str.strip()) for p in sensitive_patterns)
+
+        if is_sensitive:
+            def on_approval(approved: bool):
+                if approved:
+                    self.run_command(command_str, tui_data=tui_data, on_complete=on_complete, _force=True)
+                else:
+                    self.notify("Command denied by user.", severity="error")
+
+            # Avoid infinite loop when re-running after approval
+            if not kwargs.get("_force"):
+                self.call_from_thread(self.push_screen, ApprovalScreen(command_str), on_approval)
+                return
 
         # 0. Check for Internal TUI Routing
         # Use screens/modals instead of suspending the TTY.

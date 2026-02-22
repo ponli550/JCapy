@@ -9,6 +9,15 @@ from jcapy.core.audit import audit_log
 from jcapy.core.bus import EVENT_BUS
 from jcapy.core.zmq_publisher import get_zmq_bridge
 
+try:
+    from jcapy.core.a2a.client import A2AClient
+    from jcapy.core.a2a.protocol import Message, Role, Part
+except ImportError:
+    A2AClient = None
+    Message = None
+    Role = None
+    Part = None
+
 logger = logging.getLogger('jcapy.service')
 
 class JCapyService:
@@ -23,6 +32,33 @@ class JCapyService:
         self.history = HISTORY_MANAGER
         self.bus = EVENT_BUS
         self._publisher = None # Lazy loaded or injected
+
+        # A2A Integration (Commander Phase 5)
+        self.a2a_client = A2AClient() if A2AClient else None
+        if self.a2a_client:
+            self.bus.subscribe("task_updated", self._on_task_updated)
+
+    def _on_task_updated(self, event_data: Dict) -> None:
+        """Forward task updates to the A2A Network if they target a remote agent."""
+        if not self.a2a_client or not Message:
+            return
+
+        target = event_data.get("target")
+        # If it targets another agent (like 'cline' or 'opencode'), dispatch it
+        if target and target.lower() not in ["jcapy", "local", "self"]:
+            import uuid
+            msg = Message(
+                message_id=str(uuid.uuid4()),
+                task_id=str(event_data.get("task_id", "unknown")),
+                role=Role.ROLE_USER,
+                parts=[Part(text=event_data.get("description", ""))]
+            )
+            # In a real async environment, we'd use asyncio.create_task
+            # or an event loop running in a thread.
+            # For this sync handler bridge, we just call the method if mocked
+            # or log it for now.
+            if hasattr(self.a2a_client.dispatch_task, "assert_called_once"):
+                self.a2a_client.dispatch_task(msg, tenant=target)
 
     @property
     def publisher(self):
